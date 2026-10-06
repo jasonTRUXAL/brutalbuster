@@ -1,0 +1,785 @@
+{
+  "source": "sample",
+  "generatedAt": "2026-10-04T22:28:04.293Z",
+  "store": {
+    "name": "BRUTALBUSTER",
+    "subtitle": "VIDEO",
+    "tagline": "Be Kind, Please Rewind",
+    "channelUrl": "",
+    "channelName": ""
+  },
+  "aisles": [
+    {
+      "id": "feature-films",
+      "name": "Feature Films",
+      "color": "#ff3b3b"
+    },
+    {
+      "id": "horror",
+      "name": "Horror",
+      "color": "#b388ff"
+    },
+    {
+      "id": "sci-fi",
+      "name": "Sci-Fi",
+      "color": "#18ffff"
+    },
+    {
+      "id": "cartoons",
+      "name": "Cartoons & Kids",
+      "color": "#ffb000"
+    },
+    {
+      "id": "educational",
+      "name": "Educational",
+      "color": "#29b6f6"
+    },
+    {
+      "id": "training",
+      "name": "Industrial & Training",
+      "color": "#c6ff00"
+    },
+    {
+      "id": "fitness",
+      "name": "Fitness & Workout",
+      "color": "#ff4fa3"
+    },
+    {
+      "id": "tv",
+      "name": "TV Recordings",
+      "color": "#00e5c0"
+    },
+    {
+      "id": "commercials",
+      "name": "Commercials & Bumpers",
+      "color": "#ff7a00"
+    },
+    {
+      "id": "home-video",
+      "name": "Home Video",
+      "color": "#3ddc84"
+    },
+    {
+      "id": "music",
+      "name": "Music & Concerts",
+      "color": "#7c4dff"
+    },
+    {
+      "id": "holiday",
+      "name": "Holiday",
+      "color": "#ff1744"
+    }
+  ],
+  "videos": [
+    {
+      "id": "sample-001",
+      "youtubeId": null,
+      "title": "The Midnight Projectionist",
+      "description": "A small-town projectionist discovers the films he screens after closing are showing tomorrow’s news.",
+      "aisle": "feature-films",
+      "year": 1958,
+      "duration": "1:21:40",
+      "publishedAt": "2026-09-16"
+    },
+    {
+      "id": "sample-002",
+      "youtubeId": null,
+      "title": "Desert Highway Patrol",
+      "description": "Two state troopers, one long stretch of desert highway, and a stolen armored car that keeps slipping through the heat haze.",
+      "aisle": "feature-films",
+      "year": 1962,
+      "duration": "1:14:05",
+      "publishedAt": "2026-09-15"
+    },
+    {
+      "id": "sample-003",
+      "youtubeId": null,
+      "title": "Lady of the Lighthouse",
+      "description": "A keeper’s daughter signals ships through a storm — and a secret her father kept for twenty years.",
+      "aisle": "feature-films",
+      "year": 1947,
+      "duration": "1:08:52",
+      "publishedAt": "2026-09-14"
+    },
+    {
+      "id": "sample-004",
+      "youtubeId": null,
+      "title": "Two Tickets to Nowhere",
+      "description": "A pair of grifters board the wrong train with the right suitcase. Screwball chases ensue.",
+      "aisle": "feature-films",
+      "year": 1951,
+      "duration": "1:17:33",
+      "publishedAt": "2026-09-13"
+    },
+    {
+      "id": "sample-005",
+      "youtubeId": null,
+      "title": "The Brass Detective",
+      "description": "Rain, cigarettes and a missing trumpet player. Classic poverty-row noir, rescued from a library sale tape.",
+      "aisle": "feature-films",
+      "year": 1949,
+      "duration": "1:11:10",
+      "publishedAt": "2026-09-12"
+    },
+    {
+      "id": "sample-006",
+      "youtubeId": null,
+      "title": "Harbor Lights Serenade",
+      "description": "A dockside crooner gets one shot at the big time. Songs, sailors and a very patient tugboat.",
+      "aisle": "feature-films",
+      "year": 1955,
+      "duration": "1:26:02",
+      "publishedAt": "2026-09-11"
+    },
+    {
+      "id": "sample-007",
+      "youtubeId": null,
+      "title": "Rodeo Round-Up",
+      "description": "Singing cowboy action with trick riding, a crooked sheriff and a horse smarter than everybody.",
+      "aisle": "feature-films",
+      "year": 1953,
+      "duration": "58:44",
+      "publishedAt": "2026-09-10"
+    },
+    {
+      "id": "sample-008",
+      "youtubeId": null,
+      "title": "Night of the Gravedigger",
+      "description": "The groundskeeper at Mercy Hill cemetery keeps digging after dark. Nobody asks what he’s burying.",
+      "aisle": "horror",
+      "year": 1964,
+      "duration": "1:16:20",
+      "publishedAt": "2026-09-09"
+    },
+    {
+      "id": "sample-009",
+      "youtubeId": null,
+      "title": "The Thing in the Root Cellar",
+      "description": "Farm folk discover the pumpkins aren’t the only thing growing down there.",
+      "aisle": "horror",
+      "year": 1959,
+      "duration": "1:04:12",
+      "publishedAt": "2026-09-08"
+    },
+    {
+      "id": "sample-010",
+      "youtubeId": null,
+      "title": "Fog Over Hollow Creek",
+      "description": "A drive-in favourite: campers, a lake, and fog that seems to move on its own.",
+      "aisle": "horror",
+      "year": 1971,
+      "duration": "1:22:48",
+      "publishedAt": "2026-09-07"
+    },
+    {
+      "id": "sample-011",
+      "youtubeId": null,
+      "title": "Attack of the Atomic Moths",
+      "description": "Radiation + porch lights = disaster. Some of the finest puppetry ever filmed on a Tuesday.",
+      "aisle": "horror",
+      "year": 1957,
+      "duration": "1:09:30",
+      "publishedAt": "2026-09-06"
+    },
+    {
+      "id": "sample-012",
+      "youtubeId": null,
+      "title": "The Ventriloquist’s Basement",
+      "description": "He swears the dummy does all the talking. The neighbours are starting to believe him.",
+      "aisle": "horror",
+      "year": 1968,
+      "duration": "1:18:05",
+      "publishedAt": "2026-09-05"
+    },
+    {
+      "id": "sample-013",
+      "youtubeId": null,
+      "title": "Witch Hazel Lane",
+      "description": "A new family moves onto a cul-de-sac where every house has the same strange garden.",
+      "aisle": "horror",
+      "year": 1973,
+      "duration": "1:27:16",
+      "publishedAt": "2026-09-04"
+    },
+    {
+      "id": "sample-014",
+      "youtubeId": null,
+      "title": "Robot Patrol 2000",
+      "description": "In the far-off year 2000, a tin-can lawman learns what it means to be human. Mostly by falling down stairs.",
+      "aisle": "sci-fi",
+      "year": 1966,
+      "duration": "1:12:44",
+      "publishedAt": "2026-09-03"
+    },
+    {
+      "id": "sample-015",
+      "youtubeId": null,
+      "title": "Rocket Girls from Planet Zed",
+      "description": "Interplanetary pilots crash-land in a Nevada diner and refuse to leave until they get pie.",
+      "aisle": "sci-fi",
+      "year": 1959,
+      "duration": "1:06:58",
+      "publishedAt": "2026-09-02"
+    },
+    {
+      "id": "sample-016",
+      "youtubeId": null,
+      "title": "The Crystal Satellite",
+      "description": "Mission control picks up a lullaby coming from orbit. The satellite was launched empty.",
+      "aisle": "sci-fi",
+      "year": 1963,
+      "duration": "1:15:01",
+      "publishedAt": "2026-09-01"
+    },
+    {
+      "id": "sample-017",
+      "youtubeId": null,
+      "title": "Moonbase Omega",
+      "description": "Six scientists, one lunar outpost, and a crate nobody remembers packing.",
+      "aisle": "sci-fi",
+      "year": 1970,
+      "duration": "1:31:25",
+      "publishedAt": "2026-08-31"
+    },
+    {
+      "id": "sample-018",
+      "youtubeId": null,
+      "title": "Signals from Andromeda",
+      "description": "A ham radio operator decodes a message from deep space: it’s a recipe.",
+      "aisle": "sci-fi",
+      "year": 1961,
+      "duration": "1:10:37",
+      "publishedAt": "2026-08-30"
+    },
+    {
+      "id": "sample-019",
+      "youtubeId": null,
+      "title": "The Time Tunnel Tapes",
+      "description": "Pilot episode of a public TV series that never got picked up. Tinfoil, theremins and big ideas.",
+      "aisle": "sci-fi",
+      "year": 1975,
+      "duration": "48:12",
+      "publishedAt": "2026-08-29"
+    },
+    {
+      "id": "sample-020",
+      "youtubeId": null,
+      "title": "Saturday Morning Mix Vol. 1",
+      "description": "Two hours of cartoons, cereal bumpers and toy ads exactly as they aired. Commercials intact.",
+      "aisle": "cartoons",
+      "year": 1986,
+      "duration": "1:02:15",
+      "publishedAt": "2026-08-28"
+    },
+    {
+      "id": "sample-021",
+      "youtubeId": null,
+      "title": "Saturday Morning Mix Vol. 2",
+      "description": "More bowl-of-cereal bliss — including the infamous “mystery cartoon” nobody can identify.",
+      "aisle": "cartoons",
+      "year": 1987,
+      "duration": "58:40",
+      "publishedAt": "2026-08-27"
+    },
+    {
+      "id": "sample-022",
+      "youtubeId": null,
+      "title": "Inkwell Classics: Silly Shorts",
+      "description": "Rubber-hose animation from the public domain: dancing skeletons, singing cows and a very angry cloud.",
+      "aisle": "cartoons",
+      "year": 1932,
+      "duration": "42:08",
+      "publishedAt": "2026-08-26"
+    },
+    {
+      "id": "sample-023",
+      "youtubeId": null,
+      "title": "The Puppet Theater Hour",
+      "description": "A local children’s show with felt puppets, a talking moon and a host who clearly needed a nap.",
+      "aisle": "cartoons",
+      "year": 1984,
+      "duration": "55:30",
+      "publishedAt": "2026-08-25"
+    },
+    {
+      "id": "sample-024",
+      "youtubeId": null,
+      "title": "Sing-Along Safari",
+      "description": "Learn your animals, colours and the deeply catchy “Hippo Hop.”",
+      "aisle": "cartoons",
+      "year": 1991,
+      "duration": "34:22",
+      "publishedAt": "2026-08-24"
+    },
+    {
+      "id": "sample-025",
+      "youtubeId": null,
+      "title": "Bedtime Stories with Grandpa Gus",
+      "description": "An armchair, a cardigan and six stories read slowly enough to put anyone to sleep.",
+      "aisle": "cartoons",
+      "year": 1989,
+      "duration": "47:51",
+      "publishedAt": "2026-08-23"
+    },
+    {
+      "id": "sample-026",
+      "youtubeId": null,
+      "title": "The Wonderful World of Electricity",
+      "description": "Sparky the animated plug explains where power comes from and why you shouldn’t lick the toaster.",
+      "aisle": "educational",
+      "year": 1958,
+      "duration": "21:12",
+      "publishedAt": "2026-08-22"
+    },
+    {
+      "id": "sample-027",
+      "youtubeId": null,
+      "title": "Dental Hygiene and You",
+      "description": "A classroom film featuring the most dramatic toothbrush you will ever see.",
+      "aisle": "educational",
+      "year": 1962,
+      "duration": "13:40",
+      "publishedAt": "2026-08-21"
+    },
+    {
+      "id": "sample-028",
+      "youtubeId": null,
+      "title": "Know Your Microwave Oven",
+      "description": "Owner’s guide tape: from reheating coffee to “microwave meatloaf.” Yes, really.",
+      "aisle": "educational",
+      "year": 1984,
+      "duration": "28:14",
+      "publishedAt": "2026-08-20"
+    },
+    {
+      "id": "sample-029",
+      "youtubeId": null,
+      "title": "The Metric System Is Coming!",
+      "description": "A cheerful warning that America will switch to metric any day now.",
+      "aisle": "educational",
+      "year": 1976,
+      "duration": "17:55",
+      "publishedAt": "2026-08-19"
+    },
+    {
+      "id": "sample-030",
+      "youtubeId": null,
+      "title": "Manners at the Dinner Table",
+      "description": "Mid-century etiquette with a very judgemental narrator.",
+      "aisle": "educational",
+      "year": 1951,
+      "duration": "11:02",
+      "publishedAt": "2026-08-18"
+    },
+    {
+      "id": "sample-031",
+      "youtubeId": null,
+      "title": "Exploring the Home Computer",
+      "description": "Floppy disks, dot-matrix printers and the promise of recipes stored on cassette.",
+      "aisle": "educational",
+      "year": 1983,
+      "duration": "32:47",
+      "publishedAt": "2026-08-17"
+    },
+    {
+      "id": "sample-032",
+      "youtubeId": null,
+      "title": "Why Do Leaves Change Color?",
+      "description": "Time-lapse autumn foliage set to a synthesizer score that slaps.",
+      "aisle": "educational",
+      "year": 1979,
+      "duration": "14:30",
+      "publishedAt": "2026-08-16"
+    },
+    {
+      "id": "sample-033",
+      "youtubeId": null,
+      "title": "Customer Service the Right Way",
+      "description": "Role-play scenarios from a regional grocery chain. The “Wrong Way” examples are the best part.",
+      "aisle": "training",
+      "year": 1988,
+      "duration": "24:18",
+      "publishedAt": "2026-08-15"
+    },
+    {
+      "id": "sample-034",
+      "youtubeId": null,
+      "title": "Forklift Safety: Part One",
+      "description": "Pallets, hard hats and a narrator who has seen things.",
+      "aisle": "training",
+      "year": 1981,
+      "duration": "19:44",
+      "publishedAt": "2026-08-14"
+    },
+    {
+      "id": "sample-035",
+      "youtubeId": null,
+      "title": "Welcome to the Mall: Employee Orientation",
+      "description": "Food court, fountain, fire exits. A perfect time capsule of the early ’90s mall.",
+      "aisle": "training",
+      "year": 1990,
+      "duration": "26:03",
+      "publishedAt": "2026-08-13"
+    },
+    {
+      "id": "sample-036",
+      "youtubeId": null,
+      "title": "Burger Station Crew Training",
+      "description": "How to work the grill, the fryer and the drive-thru headset, with a rap about cleanliness.",
+      "aisle": "training",
+      "year": 1987,
+      "duration": "31:20",
+      "publishedAt": "2026-08-12"
+    },
+    {
+      "id": "sample-037",
+      "youtubeId": null,
+      "title": "Telephone Etiquette for the Modern Office",
+      "description": "Hold music, transfer buttons and the art of the professional “please hold.”",
+      "aisle": "training",
+      "year": 1985,
+      "duration": "18:09",
+      "publishedAt": "2026-08-11"
+    },
+    {
+      "id": "sample-038",
+      "youtubeId": null,
+      "title": "Ladder Safety Is No Accident",
+      "description": "Every possible way to fall off a ladder, demonstrated by a very brave stuntman.",
+      "aisle": "training",
+      "year": 1979,
+      "duration": "12:58",
+      "publishedAt": "2026-08-10"
+    },
+    {
+      "id": "sample-039",
+      "youtubeId": null,
+      "title": "Aerobicize Your Life",
+      "description": "Leg warmers on, synth bass up. Grapevine to the left!",
+      "aisle": "fitness",
+      "year": 1983,
+      "duration": "45:00",
+      "publishedAt": "2026-08-09"
+    },
+    {
+      "id": "sample-040",
+      "youtubeId": null,
+      "title": "Neon Step Workout",
+      "description": "Step class at its most fluorescent, filmed in front of a giant laser backdrop.",
+      "aisle": "fitness",
+      "year": 1989,
+      "duration": "52:12",
+      "publishedAt": "2026-08-08"
+    },
+    {
+      "id": "sample-041",
+      "youtubeId": null,
+      "title": "Senior Stretch & Smile",
+      "description": "Gentle chair exercises led by the most encouraging instructor in history.",
+      "aisle": "fitness",
+      "year": 1992,
+      "duration": "30:26",
+      "publishedAt": "2026-08-07"
+    },
+    {
+      "id": "sample-042",
+      "youtubeId": null,
+      "title": "Low-Impact Living Room Dance",
+      "description": "No equipment needed — just move the coffee table.",
+      "aisle": "fitness",
+      "year": 1990,
+      "duration": "38:40",
+      "publishedAt": "2026-08-06"
+    },
+    {
+      "id": "sample-043",
+      "youtubeId": null,
+      "title": "Self-Defense for the Whole Family",
+      "description": "Wrist grabs, loud voices and a demonstration on a very polite mannequin.",
+      "aisle": "fitness",
+      "year": 1986,
+      "duration": "41:15",
+      "publishedAt": "2026-08-05"
+    },
+    {
+      "id": "sample-044",
+      "youtubeId": null,
+      "title": "Morning Yoga with Sunny",
+      "description": "Sunrise on a beach, slightly warbly tape, wonderfully calming.",
+      "aisle": "fitness",
+      "year": 1994,
+      "duration": "35:50",
+      "publishedAt": "2026-08-04"
+    },
+    {
+      "id": "sample-045",
+      "youtubeId": null,
+      "title": "Channel 38 Late Night Movie Block (Oct ’87)",
+      "description": "Four hours straight off a UHF station, complete with horror host, local ads and a sign-off.",
+      "aisle": "tv",
+      "year": 1987,
+      "duration": "3:58:10",
+      "publishedAt": "2026-08-03"
+    },
+    {
+      "id": "sample-046",
+      "youtubeId": null,
+      "title": "Local News at Ten — Blizzard Coverage",
+      "description": "Storm-of-the-century team coverage, live shots from overpasses and a weatherman losing it.",
+      "aisle": "tv",
+      "year": 1993,
+      "duration": "1:01:44",
+      "publishedAt": "2026-08-02"
+    },
+    {
+      "id": "sample-047",
+      "youtubeId": null,
+      "title": "Public Access: Cooking with Carl",
+      "description": "Carl makes a casserole. Carl takes calls. Carl’s cat makes an appearance.",
+      "aisle": "tv",
+      "year": 1991,
+      "duration": "27:35",
+      "publishedAt": "2026-08-01"
+    },
+    {
+      "id": "sample-048",
+      "youtubeId": null,
+      "title": "Midnight Bowling Tournament",
+      "description": "Regional championship coverage with commentary so calm it’s practically ASMR.",
+      "aisle": "tv",
+      "year": 1985,
+      "duration": "1:12:20",
+      "publishedAt": "2026-07-31"
+    },
+    {
+      "id": "sample-049",
+      "youtubeId": null,
+      "title": "Telethon Highlights 1988",
+      "description": "Phone banks, jugglers and a tote board that only goes up.",
+      "aisle": "tv",
+      "year": 1988,
+      "duration": "2:05:12",
+      "publishedAt": "2026-07-30"
+    },
+    {
+      "id": "sample-050",
+      "youtubeId": null,
+      "title": "Overnight Weather Scan with Smooth Jazz",
+      "description": "Local forecast loop and the smoothest saxophone ever recorded to tape.",
+      "aisle": "tv",
+      "year": 1995,
+      "duration": "1:00:00",
+      "publishedAt": "2026-07-29"
+    },
+    {
+      "id": "sample-051",
+      "youtubeId": null,
+      "title": "Christmas Commercial Breaks 1989",
+      "description": "Every toy, every department store, every jingle from one December of recorded TV.",
+      "aisle": "commercials",
+      "year": 1989,
+      "duration": "46:30",
+      "publishedAt": "2026-07-28"
+    },
+    {
+      "id": "sample-052",
+      "youtubeId": null,
+      "title": "Saturday Morning Toy Ads Vol. 3",
+      "description": "Action figures, sugar cereals and “batteries not included.”",
+      "aisle": "commercials",
+      "year": 1986,
+      "duration": "38:12",
+      "publishedAt": "2026-07-27"
+    },
+    {
+      "id": "sample-053",
+      "youtubeId": null,
+      "title": "Station IDs & Bumpers Compilation",
+      "description": "Spinning logos, chrome text and the voice-over guy at his finest.",
+      "aisle": "commercials",
+      "year": 1990,
+      "duration": "22:48",
+      "publishedAt": "2026-07-26"
+    },
+    {
+      "id": "sample-054",
+      "youtubeId": null,
+      "title": "Infomercial Marathon: Kitchen Gadgets",
+      "description": "It slices! It dices! But wait — there’s more.",
+      "aisle": "commercials",
+      "year": 1994,
+      "duration": "1:30:00",
+      "publishedAt": "2026-07-25"
+    },
+    {
+      "id": "sample-055",
+      "youtubeId": null,
+      "title": "Back to School Ads 1992",
+      "description": "Trapper keepers, light-up sneakers and stores that no longer exist.",
+      "aisle": "commercials",
+      "year": 1992,
+      "duration": "19:05",
+      "publishedAt": "2026-07-24"
+    },
+    {
+      "id": "sample-056",
+      "youtubeId": null,
+      "title": "Camping Trip to Lake Winnemac",
+      "description": "Tents, a canoe incident and an uncle narrating everything.",
+      "aisle": "home-video",
+      "year": 1990,
+      "duration": "1:12:00",
+      "publishedAt": "2026-07-23"
+    },
+    {
+      "id": "sample-057",
+      "youtubeId": null,
+      "title": "Grandma Ruth’s 80th Birthday",
+      "description": "Cake, candles and a very loud rendition of “Happy Birthday.” Found at an estate sale.",
+      "aisle": "home-video",
+      "year": 1988,
+      "duration": "58:30",
+      "publishedAt": "2026-07-22"
+    },
+    {
+      "id": "sample-058",
+      "youtubeId": null,
+      "title": "Little League Championship Game",
+      "description": "Shot from the bleachers. The Hornets were robbed in the fifth.",
+      "aisle": "home-video",
+      "year": 1993,
+      "duration": "1:41:12",
+      "publishedAt": "2026-07-21"
+    },
+    {
+      "id": "sample-059",
+      "youtubeId": null,
+      "title": "Our Trip to the World’s Fair",
+      "description": "Pavilions, monorails and a family that refuses to stop waving at the camera.",
+      "aisle": "home-video",
+      "year": 1984,
+      "duration": "47:20",
+      "publishedAt": "2026-07-20"
+    },
+    {
+      "id": "sample-060",
+      "youtubeId": null,
+      "title": "Unlabeled Tape #14",
+      "description": "No label, no case — just what we found. Watch at your own risk.",
+      "aisle": "home-video",
+      "year": 1996,
+      "duration": "2:00:00",
+      "publishedAt": "2026-07-19"
+    },
+    {
+      "id": "sample-061",
+      "youtubeId": null,
+      "title": "Wedding Reception — Do Not Tape Over",
+      "description": "Somebody did tape over the last 10 minutes. With a cooking show.",
+      "aisle": "home-video",
+      "year": 1987,
+      "duration": "1:55:40",
+      "publishedAt": "2026-07-18"
+    },
+    {
+      "id": "sample-062",
+      "youtubeId": null,
+      "title": "High School Battle of the Bands ’91",
+      "description": "Six bands, one gym, a lot of hairspray. The drummer from “Static Shock” rules.",
+      "aisle": "music",
+      "year": 1991,
+      "duration": "1:24:36",
+      "publishedAt": "2026-07-17"
+    },
+    {
+      "id": "sample-063",
+      "youtubeId": null,
+      "title": "Polka Party Live!",
+      "description": "Accordions to the max, broadcast from a VFW hall.",
+      "aisle": "music",
+      "year": 1985,
+      "duration": "57:12",
+      "publishedAt": "2026-07-16"
+    },
+    {
+      "id": "sample-064",
+      "youtubeId": null,
+      "title": "Community Orchestra Summer Pops",
+      "description": "Outdoor concert under the stars, interrupted only once by a very confused goose.",
+      "aisle": "music",
+      "year": 1989,
+      "duration": "1:33:20",
+      "publishedAt": "2026-07-15"
+    },
+    {
+      "id": "sample-065",
+      "youtubeId": null,
+      "title": "Garage Rock Basement Sessions",
+      "description": "Fuzz pedals and a single microphone hanging from a ceiling pipe.",
+      "aisle": "music",
+      "year": 1994,
+      "duration": "44:51",
+      "publishedAt": "2026-07-14"
+    },
+    {
+      "id": "sample-066",
+      "youtubeId": null,
+      "title": "Church Choir Christmas Cantata",
+      "description": "Candlelight, robes and a soloist who absolutely nails it.",
+      "aisle": "music",
+      "year": 1990,
+      "duration": "1:08:25",
+      "publishedAt": "2026-07-13"
+    },
+    {
+      "id": "sample-067",
+      "youtubeId": null,
+      "title": "Yule Log Fireplace (Two Hours)",
+      "description": "Crackling logs and soft carols, taped off a local station on Christmas Eve.",
+      "aisle": "holiday",
+      "year": 1986,
+      "duration": "2:00:00",
+      "publishedAt": "2026-07-12"
+    },
+    {
+      "id": "sample-068",
+      "youtubeId": null,
+      "title": "Halloween Spook House Walkthrough",
+      "description": "A neighbourhood haunted garage, filmed with a flashlight taped to the camcorder.",
+      "aisle": "holiday",
+      "year": 1992,
+      "duration": "23:40",
+      "publishedAt": "2026-07-11"
+    },
+    {
+      "id": "sample-069",
+      "youtubeId": null,
+      "title": "Fourth of July Fireworks Downtown",
+      "description": "The grand finale is worth the wait. Mostly.",
+      "aisle": "holiday",
+      "year": 1988,
+      "duration": "35:10",
+      "publishedAt": "2026-07-10"
+    },
+    {
+      "id": "sample-070",
+      "youtubeId": null,
+      "title": "Thanksgiving Parade (Local Broadcast)",
+      "description": "Marching bands, giant balloons and two anchors filling a lot of time.",
+      "aisle": "holiday",
+      "year": 1990,
+      "duration": "2:12:45",
+      "publishedAt": "2026-07-09"
+    },
+    {
+      "id": "sample-071",
+      "youtubeId": null,
+      "title": "A Very Snowy Christmas Special",
+      "description": "Variety-show holiday special with skits, songs and a suspicious amount of fake snow.",
+      "aisle": "holiday",
+      "year": 1979,
+      "duration": "50:18",
+      "publishedAt": "2026-07-08"
+    }
+  ]
+}

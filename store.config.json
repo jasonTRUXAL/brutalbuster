@@ -1,0 +1,28 @@
+{
+  "store": {
+    "name": "BRUTALBUSTER",
+    "subtitle": "VIDEO",
+    "tagline": "Be Kind, Please Rewind"
+  },
+  "youtube": {
+    "channel": "",
+    "aislesFromPlaylists": true,
+    "defaultAisle": "Rare Finds",
+    "skipShorts": true,
+    "titleCleanup": ["\\s*[\\[(](?:full\\s+)?vhs(?:\\s*(?:rip|transfer|capture))?[\\])]", "\\s*\\|\\s*vhs.*$"]
+  },
+  "aisles": [
+    { "name": "Feature Films", "color": "#ff3b3b", "match": ["feature film", "full movie", "public domain film"] },
+    { "name": "Horror", "color": "#b388ff", "match": ["horror", "monster", "haunted", "zombie"] },
+    { "name": "Sci-Fi", "color": "#18ffff", "match": ["sci-fi", "science fiction"] },
+    { "name": "Cartoons & Kids", "color": "#ffb000", "match": ["cartoon", "cartoons", "animated", "children's"] },
+    { "name": "Educational", "color": "#29b6f6", "match": ["educational", "classroom", "school film"] },
+    { "name": "Industrial & Training", "color": "#c6ff00", "match": ["training", "orientation", "industrial", "safety"] },
+    { "name": "Fitness & Workout", "color": "#ff4fa3", "match": ["workout", "aerobic", "fitness", "exercise", "yoga"] },
+    { "name": "TV Recordings", "color": "#00e5c0", "match": ["recorded off", "taped off", "tv recording", "public access", "late night"] },
+    { "name": "Commercials & Bumpers", "color": "#ff7a00", "match": ["commercial", "commercials", "bumper", "bumpers", "station id"] },
+    { "name": "Home Video", "color": "#3ddc84", "match": ["home video", "home movie", "camcorder", "found tape", "found footage"] },
+    { "name": "Music & Concerts", "color": "#7c4dff", "match": ["concert", "music video", "live performance"] },
+    { "name": "Holiday", "color": "#ff1744", "match": ["christmas", "halloween", "thanksgiving", "holiday", "easter"] }
+  ]
+}

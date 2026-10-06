@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0f26" />
+    <title>Brutalbuster Video</title>
+    <meta name="description" content="Walk the aisles of a retro video store and pick a tape to watch — rare VHS transfers, shelved like it's 1994." />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <canvas id="scene" class="blurred" aria-label="3D video store"></canvas>
+
+    <!-- In-store HUD -->
+    <div id="hud" hidden>
+      <div class="hud-top">
+        <div class="hud-brand"><span class="brand-name"></span><span class="brand-sub"></span></div>
+        <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
+      </div>
+      <div id="crosshair"></div>
+      <div id="tooltip" hidden>
+        <div class="tt-aisle"></div>
+        <div class="tt-title"></div>
+        <div class="tt-hint"></div>
+      </div>
+      <div class="hud-help desktop-only">
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span>
+        <span><kbd>Shift</kbd> hurry</span>
+        <span><kbd>Click</kbd> pick up</span>
+        <span><kbd>F</kbd> find</span>
+        <span><kbd>Esc</kbd> pause</span>
+      </div>
+      <div class="hud-help touch-only">Left thumb: walk · Right thumb: look · Tap a tape to pick it up</div>
+      <div id="joystick"><div class="knob"></div></div>
+    </div>
+
+    <!-- Splash / front door -->
+    <section id="splash" class="overlay">
+      <div class="splash-card">
+        <h1 class="neon-logo"><span class="brand-name">BRUTALBUSTER</span><span class="brand-sub">VIDEO</span></h1>
+        <p class="tagline"></p>
+        <div class="counter">
+          <span class="counter-label" id="splash-status">Unlocking the front door…</span>
+          <span class="counter-num" id="splash-count"></span>
+        </div>
+        <div class="tape-progress"><div id="splash-bar"></div></div>
+        <button id="btn-enter" class="btn primary big" type="button" disabled>Enter the store ▶</button>
+        <div class="controls-legend desktop-only">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>walk the aisles</span></div>
+          <div><kbd>Mouse</kbd><span>look around</span></div>
+          <div><kbd>Click</kbd><span>pick up a tape</span></div>
+          <div><kbd>F</kbd><span>find a title</span></div>
+        </div>
+        <div class="controls-legend touch-only">
+          <div><span>Drag on the left to walk, on the right to look. Tap any tape to pick it up.</span></div>
+        </div>
+        <p class="credit" id="splash-credit"></p>
+      </div>
+    </section>
+
+    <!-- Pause -->
+    <section id="pause" class="overlay" hidden>
+      <div class="pause-card">
+        <h2>Still browsing?</h2>
+        <p>Click anywhere to step back into the aisles.</p>
+        <div class="pause-actions">
+          <button class="btn primary" data-act="resume" type="button">Keep browsing</button>
+          <button class="btn" data-act="find" type="button">Find a tape</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Held tape details -->
+    <section id="inspect" hidden>
+      <div class="inspect-drag" title="Drag to turn the box"></div>
+      <aside class="inspect-panel" aria-live="polite">
+        <div class="ip-aisle"><span class="dot"></span><span class="name"></span></div>
+        <h2 class="ip-title"></h2>
+        <div class="ip-meta"></div>
+        <p class="ip-desc"></p>
+        <div class="ip-actions">
+          <button class="btn primary" data-act="watch" type="button">▶ Watch now</button>
+          <button class="btn" data-act="flip" type="button">↻ Flip box</button>
+          <button class="btn ghost" data-act="back" type="button">Put back <kbd>Esc</kbd></button>
+        </div>
+        <a class="ip-yt" target="_blank" rel="noopener" hidden>Open on YouTube ↗</a>
+        <p class="ip-note" hidden></p>
+      </aside>
+    </section>
+
+    <!-- TV player -->
+    <section id="player" class="overlay" hidden>
+      <div class="tv">
+        <div class="tv-screen"><div class="tv-frame"></div></div>
+        <div class="tv-bezel">
+          <span class="tv-brand"></span>
+          <span class="tv-title"></span>
+          <button class="btn" data-act="eject" type="button">⏏ Eject <kbd>Esc</kbd></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Directory -->
+    <section id="directory" class="overlay" hidden>
+      <div class="dir-card">
+        <header>
+          <h2>Store Directory</h2>
+          <input type="search" placeholder="Search every tape…" aria-label="Search titles" />
+          <button class="btn ghost" data-act="close" type="button">Close <kbd>Esc</kbd></button>
+        </header>
+        <nav class="dir-aisles"></nav>
+        <div class="dir-count"></div>
+        <div class="dir-grid"></div>
+      </div>
+    </section>
+
+    <div id="fatal" class="overlay" hidden></div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+# scratch catalogs previewed with ?catalog=_name.json
+public/_*.json
+
+# personal Claude Code settings
+.claude/settings.local.json
