@@ -180,9 +180,16 @@ export function buildStore(scene, plan, catalog) {
   root.add(signPlane(nr, nrH * nr.userData.aspect, nrH, 0, 2.86, -D / 2 + 0.03, 0, { additive: true }));
 
   // ---- checkout counter, entrance, decor
+  // Posters and the standee show box art too; they're painted before thumbnails finish
+  // loading, so remember them and repaint when a tape's thumbnail arrives.
+  const art = new Map(); // video id -> [{ material, width }]
+  const trackArt = (videoId, material, width) => {
+    if (!art.has(videoId)) art.set(videoId, []);
+    art.get(videoId).push({ material, width });
+  };
   buildCounter(root, B, mat, plan, catalog, animated);
-  buildEntrance(root, B, mat, plan, catalog, extraColliders);
-  buildPosters(root, plan, catalog);
+  buildEntrance(root, B, mat, plan, catalog, extraColliders, trackArt);
+  buildPosters(root, plan, catalog, trackArt);
 
   B.build(root);
 
@@ -210,6 +217,14 @@ export function buildStore(scene, plan, catalog) {
     colliders: [...plan.colliders, ...extraColliders],
     update(dt, t) {
       for (const a of animated) a.update(dt, t);
+    },
+    /** Repaint posters / standee for a tape whose thumbnail just loaded. */
+    refreshArt(video) {
+      for (const { material, width } of art.get(video.id) || []) {
+        const old = material.map;
+        material.map = toTexture(coverCanvas(coverData(video, catalog.aisleById.get(video.aisle), catalog.store), width));
+        old?.dispose();
+      }
     },
   };
 }
@@ -458,7 +473,7 @@ function buildCounter(root, B, mat, plan, catalog, animated) {
 
 // ------------------------------------------------------------- entrance decor
 
-function buildEntrance(root, B, mat, plan, catalog, colliders) {
+function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
   const { W, D, door } = plan;
   const z = D / 2;
 
@@ -498,6 +513,7 @@ function buildEntrance(root, B, mat, plan, catalog, colliders) {
     const szz = plan.zFront + 1.3;
     const stand = new THREE.Group();
     const face = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.49), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
+    trackArt(pick.id, face.material, 384);
     face.position.y = 0.2 + 0.745;
     stand.add(face);
     const backing = new THREE.Mesh(new THREE.BoxGeometry(0.87, 1.51, 0.01), new THREE.MeshStandardMaterial({ color: 0x8a7a5e, roughness: 1 }));
@@ -519,7 +535,7 @@ function buildEntrance(root, B, mat, plan, catalog, colliders) {
 
 // ------------------------------------------------------------- posters
 
-function buildPosters(root, plan, catalog) {
+function buildPosters(root, plan, catalog, trackArt) {
   const { W, D, zFront, door } = plan;
   const pool = shuffle(catalog.videos, rng(1234));
   if (!pool.length) return;
@@ -532,6 +548,7 @@ function buildPosters(root, plan, catalog) {
     const d = coverData(v, catalog.aisleById.get(v.aisle), catalog.store);
     const tex = toTexture(coverCanvas(d, 256));
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
+    trackArt(v.id, m.material, 256);
     m.position.set(x, y, z);
     m.rotation.y = rotY;
     m.userData.videoId = v.id;

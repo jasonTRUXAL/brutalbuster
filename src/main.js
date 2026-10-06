@@ -268,7 +268,10 @@ async function main() {
   ui.splashReady();
   mapLimit(withThumbs, 12, async (v) => {
     const t = await loadThumb(v);
-    if (t) paintCover(v);
+    if (t) {
+      paintCover(v);
+      store.refreshArt(v);
+    }
     loaded++;
     ui.splashProgress(loaded, withThumbs.length);
   });

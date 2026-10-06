@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { isoDuration, findYear, decodeXml, trimDescription, parseChannel, extractChannelId, parseRssFeed } from '../../scripts/lib/youtube-parse.mjs';
 import { buildCatalog } from '../../scripts/lib/build-catalog.mjs';
 import { validateCatalog } from '../../src/catalog-schema.js';
@@ -118,6 +119,43 @@ test('buildCatalog drops a series suffix that just repeats the aisle name', () =
   const cfg = { ...config, aisles: [{ name: 'Mystery Tapes', match: ['mystery tapes'] }] };
   const { catalog } = buildCatalog({ config: cfg, channel, videos: [v('aaaaaaaaaaa', "What's on the Dead Grandma Tapes? | Mystery Tapes"), v('bbbbbbbbbbb', 'Mystery Tapes')] });
   assert.deepEqual(catalog.videos.map((x) => x.title), ["What's on the Dead Grandma Tapes?", 'Mystery Tapes']);
+});
+
+test('buildCatalog ignores catch-all playlists and strips the channel name', () => {
+  const ch = { title: 'brutalmoose', url: 'https://www.youtube.com/brutalmoose' };
+  const memberships = new Map([
+    ['aaaaaaaaaaa', [{ title: 'The Latest', size: 10 }, { title: 'Game Reviews | brutalmoose', size: 40 }]],
+    ['bbbbbbbbbbb', [{ title: 'The Latest', size: 10 }]],
+  ]);
+  const { catalog } = buildCatalog({
+    config,
+    channel: ch,
+    videos: [v('aaaaaaaaaaa', 'Sonic Shuffle - brutalmoose'), v('bbbbbbbbbbb', 'Fresh upload')],
+    memberships,
+  });
+  const a = catalog.videos.find((x) => x.youtubeId === 'aaaaaaaaaaa');
+  assert.equal(a.title, 'Sonic Shuffle');
+  assert.equal(catalog.aisles.find((x) => x.id === a.aisle).name, 'Game Reviews');
+  assert.equal(catalog.videos.find((x) => x.youtubeId === 'bbbbbbbbbbb').aisle, 'rare-finds');
+});
+
+test('store.config.json sorts brutalmoose playlists into the intended aisles', () => {
+  const real = JSON.parse(readFileSync(new URL('../../store.config.json', import.meta.url), 'utf8'));
+  const ch = { title: 'brutalmoose', url: 'https://www.youtube.com/brutalmoose' };
+  const cases = {
+    'Mystery Tapes': 'Mystery Tapes',
+    'VHS, Film, and TV Reviews | brutalmoose': 'VHS, Film, and TV Reviews',
+    'a very brutalmoose christmas': 'Holiday',
+    'Televoid! | brutalmoose': 'Televoid!',
+    'PC Game Reviews | brutalmoose': 'PC Game Reviews',
+    brutalfoods: 'brutalfoods',
+  };
+  const ids = 'abcdefghijklmnopqrstuvwxyz';
+  const videos = Object.keys(cases).map((_, i) => v(ids[i].repeat(11), `Tape ${i}`));
+  const memberships = new Map(Object.keys(cases).map((pl, i) => [ids[i].repeat(11), [{ title: pl, size: 5 }]]));
+  const { catalog } = buildCatalog({ config: real, channel: ch, videos, memberships });
+  const nameOf = (id) => catalog.aisles.find((a) => a.id === id).name;
+  Object.values(cases).forEach((want, i) => assert.equal(nameOf(catalog.videos[i].aisle), want, `playlist "${Object.keys(cases)[i]}"`));
 });
 
 test('buildCatalog only lists aisles that have tapes', () => {

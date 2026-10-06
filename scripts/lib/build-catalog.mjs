@@ -5,6 +5,9 @@ import { findYear, trimDescription } from './youtube-parse.mjs';
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Catch-all playlists say when something was uploaded, not what it is — never make them aisles.
+const CATCH_ALL_PLAYLISTS = [/^(the )?latest\b/i, /^new(est)? (uploads|videos)$/i, /^popular (uploads|videos)$/i, /^(all )?uploads$/i, /^favou?rites$/i, /^liked videos$/i];
+
 /**
  * @param {object} p
  * @param {object} p.config      store.config.json
@@ -32,6 +35,10 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
   const ruleFor = (text) => aisleRules.find((a) => a.patterns.some((p) => p.test(text)))?.id;
   const cleanups = (yt.titleCleanup || []).map((r) => new RegExp(r, 'gi'));
   const defaultAisle = yt.defaultAisle || 'Rare Finds';
+  const ignored = [...CATCH_ALL_PLAYLISTS, ...(yt.ignorePlaylists || []).map((n) => new RegExp(`^${escapeRe(n)}$`, 'i'))];
+  // "Game Reviews | brutalmoose" -> "Game Reviews"; same for "Some Video - brutalmoose"
+  const channelTag = channel?.title ? new RegExp(`\\s*[|:–—-]\\s*${escapeRe(channel.title)}\\s*$`, 'i') : null;
+  const untag = (s) => (channelTag && s.replace(channelTag, '').trim()) || s;
 
   const videos = [];
   let skipped = 0;
@@ -42,13 +49,16 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
       skipped++;
       continue;
     }
-    let title = v.title;
+    let title = untag(v.title);
     for (const re of cleanups) title = title.replace(re, '');
     title = title.trim() || v.title;
 
     // Aisle priority: manual override → the channel's own playlists (mapped onto a
     // configured aisle when the playlist name matches one) → keywords → default.
-    const lists = (memberships.get(v.youtubeId) || []).slice().sort((a, b) => a.size - b.size);
+    const lists = (memberships.get(v.youtubeId) || [])
+      .filter((l) => !ignored.some((re) => re.test(l.title)))
+      .map((l) => ({ ...l, title: untag(l.title) }))
+      .sort((a, b) => a.size - b.size);
     let aisle = o.aisle ? ensureAisle(o.aisle) : null;
     if (!aisle && yt.aislesFromPlaylists !== false && lists.length) {
       aisle = lists.map((l) => ruleFor(l.title)).find(Boolean) || ensureAisle(lists[0].title);
