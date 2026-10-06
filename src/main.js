@@ -59,7 +59,7 @@ async function main() {
   scene.background = new THREE.Color(0x05040c);
   // Keep a usable horizontal field of view on portrait phones.
   const fovFor = (aspect) => THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(37.5)) / aspect)), 70, 95);
-  const camera = new THREE.PerspectiveCamera(fovFor(window.innerWidth / window.innerHeight), window.innerWidth / window.innerHeight, 0.03, 140);
+  const camera = new THREE.PerspectiveCamera(fovFor(window.innerWidth / window.innerHeight), window.innerWidth / window.innerHeight, 0.08, 140); // near 0.08: more depth precision for far shelves
 
   const plan = planStore(catalog);
   const atlas = new CoverAtlas();

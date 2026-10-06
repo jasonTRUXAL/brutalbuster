@@ -41,7 +41,7 @@ export class TapeShelves {
 
     // Sleeves, grouped by atlas page
     const coverGeo = new THREE.PlaneGeometry(DIM.CASE_W * 0.965, DIM.CASE_H * 0.975);
-    coverGeo.translate(0, 0, DIM.CASE_D / 2 + 0.0007);
+    coverGeo.translate(0, 0, DIM.CASE_D / 2 + 0.0012);
     const byPage = new Map();
     slots.forEach((s, i) => {
       const page = atlas.cell(s.video.id).page;

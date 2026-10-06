@@ -29,7 +29,7 @@ const test = base.extend({
 const advance = (page, seconds) => page.evaluate((s) => window.__bb.advance(s), seconds);
 
 /** Click "Enter the store" and make sure we're walking. Headless browsers may refuse
- *  pointer lock (which would show the pause screen), so let that settle first. */
+ *  pointer lock (leaving the mouse free, mode 'paused'), so let that settle first. */
 async function enter(page) {
   await page.locator('#btn-enter').click();
   await page.waitForTimeout(150);

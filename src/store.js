@@ -168,8 +168,8 @@ export function buildStore(scene, plan, catalog) {
   for (const a of plan.aisleSigns) {
     const tex = aisleSignTexture(a.number, a.labels);
     const y = 2.72;
-    root.add(signPlane(tex, 1.5, 0.586, a.x, y, a.z + 0.011, 0));
-    root.add(signPlane(tex, 1.5, 0.586, a.x, y, a.z - 0.011, Math.PI));
+    root.add(signPlane(tex, 1.5, 0.586, a.x, y, a.z + 0.013, 0));
+    root.add(signPlane(tex, 1.5, 0.586, a.x, y, a.z - 0.013, Math.PI));
     B.box(mat.trim, a.x, y, a.z, 1.54, 0.62, 0.02);
     for (const dx of [-0.6, 0.6]) B.box(mat.chrome, a.x + dx, (y + 0.31 + DIM.CEILING) / 2, a.z, 0.012, DIM.CEILING - y - 0.31, 0.012);
   }
@@ -267,11 +267,13 @@ function buildFace(root, B, mat, face) {
 
   // shelves + price channel lips
   const [sx, sz] = at(L / 2, DIM.SHELF_DEPTH / 2);
-  const [lx, lz] = at(L / 2, 0.008);
+  // The lip stands 4mm proud of the shelf front and covers the board's edge, so no two
+  // faces share a plane (coplanar faces flicker as the camera moves).
+  const [lx, lz] = at(L / 2, 0.004);
   for (let row = 0; row < DIM.SHELF_COUNT; row++) {
     const y = rowTopY(row);
     B.aligned(mat.shelf, sx, y - 0.01, sz, L, 0.02, DIM.SHELF_DEPTH, t);
-    B.aligned(mat.lip, lx, y + 0.014, lz, L, 0.045, 0.016, t);
+    B.aligned(mat.lip, lx, y + 0.0065, lz, L, 0.057, 0.016, t);
   }
   // top cap
   B.aligned(mat.shelf, sx, DIM.UNIT_H - 0.015, sz, L, 0.03, DIM.SHELF_DEPTH, t);
@@ -302,7 +304,7 @@ function buildFace(root, B, mat, face) {
     const y = DIM.UNIT_H + DIM.SIGN_H / 2 + 0.02;
     const [cx, cz] = at(mid, signBack + 0.02);
     B.aligned(mat.trim, cx, y, cz, segLen + 0.03, DIM.SIGN_H + 0.03, 0.04, t);
-    const [fx, fz] = at(mid, signBack - 0.001);
+    const [fx, fz] = at(mid, signBack - 0.003);
     const tex = headerSignTexture(r.section.label, r.section.color, segLen, DIM.SIGN_H);
     root.add(signPlane(tex, segLen, DIM.SIGN_H, fx, y, fz, facingY(n)));
   }
@@ -504,8 +506,8 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
   const ox = door.x + door.width / 2 + 1.3;
   root.add(signPlane(open, oh * open.userData.aspect, oh, Math.min(ox, W / 2 - 1), 1.9, z - 0.02, Math.PI, { additive: true }));
 
-  // cardboard standee for a featured tape
-  const pick = catalog.videos[Math.floor(rng(catalog.videos.length * 7)() * catalog.videos.length)];
+  // cardboard standee promoting the newest upload
+  const pick = catalog.videos.reduce((a, b) => (String(b.publishedAt) > String(a.publishedAt) ? b : a), catalog.videos[0]);
   if (pick) {
     const d = coverData(pick, catalog.aisleById.get(pick.aisle), catalog.store);
     const tex = toTexture(coverCanvas(d, 384));
@@ -522,7 +524,7 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
     const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.2, 0.3), mat.counter);
     base.position.set(0, 0.1, 0);
     stand.add(base);
-    const flag = signPlane(panelTexture(['COMING SOON'], { w: 512, h: 128, bg: BRAND.magenta, border: '#fff' }), 0.85, 0.2, 0, 0.1, 0.152, 0);
+    const flag = signPlane(panelTexture(['NEWEST RELEASE'], { w: 512, h: 128, bg: BRAND.magenta, border: '#fff' }), 0.85, 0.2, 0, 0.1, 0.153, 0);
     stand.add(flag);
     stand.position.set(sx, 0, szz);
     stand.rotation.y = 0.55;

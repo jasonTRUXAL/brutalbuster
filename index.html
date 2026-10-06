@@ -18,6 +18,7 @@
         <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
       </div>
       <div id="crosshair"></div>
+      <div id="resume-hint" hidden><kbd>Click</kbd> to look around</div>
       <div id="tooltip" hidden>
         <div class="tt-aisle"></div>
         <div class="tt-title"></div>
@@ -28,7 +29,7 @@
         <span><kbd>Shift</kbd> hurry</span>
         <span><kbd>Click</kbd> pick up</span>
         <span><kbd>F</kbd> find</span>
-        <span><kbd>Esc</kbd> pause</span>
+        <span><kbd>Esc</kbd> free the mouse</span>
       </div>
       <div class="hud-help touch-only">Left thumb: walk · Right thumb: look · Tap a tape to pick it up</div>
       <div id="joystick"><div class="knob"></div></div>
@@ -55,18 +56,6 @@
           <div><span>Drag on the left to walk, on the right to look. Tap any tape to pick it up.</span></div>
         </div>
         <p class="credit" id="splash-credit"></p>
-      </div>
-    </section>
-
-    <!-- Pause -->
-    <section id="pause" class="overlay" hidden>
-      <div class="pause-card">
-        <h2>Still browsing?</h2>
-        <p>Click anywhere to step back into the aisles.</p>
-        <div class="pause-actions">
-          <button class="btn primary" data-act="resume" type="button">Keep browsing</button>
-          <button class="btn" data-act="find" type="button">Find a tape</button>
-        </div>
       </div>
     </section>
 

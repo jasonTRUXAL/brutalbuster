@@ -7,7 +7,7 @@ export class UI {
   constructor() {
     this.splash = $('#splash');
     this.hud = $('#hud');
-    this.pause = $('#pause');
+    this.resumeHint = $('#resume-hint');
     this.inspect = $('#inspect');
     this.player = $('#player');
     this.directory = $('#directory');
@@ -18,11 +18,6 @@ export class UI {
 
     $('#btn-enter').addEventListener('click', () => this.handlers.enter?.());
     $('#btn-find').addEventListener('click', () => this.handlers.find?.());
-    this.pause.addEventListener('click', (e) => {
-      const act = e.target.closest('[data-act]')?.dataset.act;
-      if (act === 'find') this.handlers.find?.();
-      else if (act === 'resume' || !e.target.closest('.pause-card')) this.handlers.resume?.();
-    });
     this.inspect.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act) this.handlers[act]?.();
@@ -93,7 +88,9 @@ export class UI {
     const inStore = mode !== 'splash';
     this.splash.hidden = mode !== 'splash';
     this.hud.hidden = !inStore || mode === 'watch' || mode === 'inspect';
-    this.pause.hidden = mode !== 'paused';
+    // 'paused' = mouse released (Esc): the store stays visible, a click recaptures the mouse
+    this.resumeHint.hidden = mode !== 'paused';
+    document.body.classList.toggle('mouse-free', mode === 'paused');
     this.inspect.hidden = mode !== 'inspect';
     this.player.hidden = mode !== 'watch';
     this.directory.hidden = mode !== 'directory';
