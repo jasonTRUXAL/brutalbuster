@@ -153,9 +153,11 @@ async function main() {
   const overrides = readJson(resolve(ROOT, 'catalog.overrides.json'), {});
   const outPath = resolve(ROOT, opts.out || 'public/catalog.json');
 
-  const channel = parseChannel(opts.channel || config.youtube?.channel);
+  const input = opts.channel || config.youtube?.channel;
+  const channel = parseChannel(input);
   if (!channel) {
-    console.error('✖ No channel set. Put your friend’s channel (e.g. "@TheirHandle") in store.config.json → youtube.channel,');
+    console.error(input ? `✖ "${input}" doesn't look like a YouTube channel.` : '✖ No channel set.');
+    console.error('  Put the channel (e.g. "@TheirHandle" or its URL) in store.config.json → youtube.channel,');
     console.error('  or run:  npm run sync -- --channel @TheirHandle');
     process.exit(1);
   }

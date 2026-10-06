@@ -61,6 +61,14 @@ for (const n of SIZES) {
   });
 }
 
+test('filler sections never reuse a real aisle name', () => {
+  const raw = catalogOf(10, 2);
+  raw.aisles[0].name = 'Staff Picks';
+  const labels = planStore(raw).sections.filter((s) => s.kind === 'featured').map((s) => s.label);
+  assert.ok(labels.length > 0);
+  assert.ok(!labels.includes('Staff Picks'));
+});
+
 test('layout is deterministic for the same catalog', () => {
   const a = planStore(catalogOf(120, 6));
   const b = planStore(catalogOf(120, 6));

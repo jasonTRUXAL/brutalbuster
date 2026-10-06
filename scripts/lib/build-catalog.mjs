@@ -56,6 +56,10 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
     if (!aisle) aisle = ruleFor(`${title}\n${(v.tags || []).join(' ')}`);
     if (!aisle) aisle = ensureAisle(defaultAisle);
 
+    // "Dead Grandma Tapes | Mystery Tapes" on the Mystery Tapes shelf → "Dead Grandma Tapes"
+    const series = new RegExp(`\\s*[|:–—-]\\s*${escapeRe(aisles.get(aisle).name)}\\s*$`, 'i');
+    if (series.test(title) && title.replace(series, '').trim()) title = title.replace(series, '').trim();
+
     videos.push({
       id: v.youtubeId,
       youtubeId: v.youtubeId,

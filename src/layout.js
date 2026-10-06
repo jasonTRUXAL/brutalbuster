@@ -10,7 +10,7 @@ const MAX_COPIES = 4;
 const ROW_PRIORITY = [3, 2, 4, 1, 0];
 const FEATURED = [
   'Staff Picks', 'Recently Returned', 'Hidden Gems', 'Cult Corner', 'Late Night',
-  'Blast From the Past', 'Mystery Tapes', 'Weird Stuff', 'Dollar Rentals', 'Rewind Classics',
+  'Blast From the Past', 'Grab Bag', 'Weird Stuff', 'Dollar Rentals', 'Rewind Classics',
 ];
 const ENDCAP_LABELS = ['Staff Pick', 'Now Showing', 'Must See', 'Customer Fave', 'Clerk Pick', 'Spotlight'];
 const FEATURE_COLORS = ['#ffc61a', '#ff2e88', '#2ee6ff', '#3ddc84', '#ff7a00', '#b388ff'];
@@ -117,12 +117,15 @@ export function planStore(catalog) {
     for (let i = 0; i < n && videos.length; i++) out.push(pool[poolIdx++ % pool.length]);
     return out;
   };
+  // filler sections must never share a name with a real aisle
+  const aisleNames = new Set(aisles.map((a) => a.name.toLowerCase()));
+  const featured = FEATURED.filter((f) => !aisleNames.has(f.toLowerCase()));
   for (let i = 0; spare > 0; i++) {
     const bays = Math.min(spare, 2);
     spare -= bays;
     sections.push({
       key: `featured-${i}`,
-      label: FEATURED[i % FEATURED.length],
+      label: featured[i % featured.length],
       color: FEATURE_COLORS[i % FEATURE_COLORS.length],
       kind: 'featured',
       bays,

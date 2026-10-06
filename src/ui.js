@@ -65,7 +65,7 @@ export class UI {
     document.title = `${titleCase(store.name)} ${titleCase(store.subtitle || '')}`.trim();
     const credit = $('#splash-credit');
     if (store.channelUrl) {
-      credit.innerHTML = `Every tape here was digitized and uploaded by <a href="${escapeHtml(store.channelUrl)}" target="_blank" rel="noopener">${escapeHtml(store.channelName || 'our friends on YouTube')}</a>.`;
+      credit.innerHTML = `Every tape on these shelves comes from <a href="${escapeHtml(store.channelUrl)}" target="_blank" rel="noopener">${escapeHtml(store.channelName || 'our friends')}</a> on YouTube.`;
     } else {
       credit.textContent = 'Rare VHS transfers, shelved like it’s 1994.';
     }

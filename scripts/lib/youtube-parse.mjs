@@ -39,6 +39,8 @@ export function trimDescription(d, max = 900) {
   return text.length > max ? `${text.slice(0, max).replace(/\s+\S*$/, '')}…` : text;
 }
 
+const NOT_CHANNELS = new Set(['watch', 'playlist', 'results', 'feed', 'shorts', 'embed', 'live', 'hashtag', 'redirect']);
+
 /**
  * Accepts "@Handle", "UC…" ids and the common channel URL shapes.
  * @returns {{id?: string, handle?: string, username?: string, url?: string} | null}
@@ -48,17 +50,20 @@ export function parseChannel(input) {
   if (!s) return null;
   if (/^UC[\w-]{22}$/.test(s)) return { id: s };
   if (s.startsWith('@')) return { handle: s };
+  if (/^[\w.-]+$/.test(s) && !/\.(com|be)$/i.test(s)) return { handle: `@${s}` }; // bare handle
   try {
     const u = new URL(s.startsWith('http') ? s : `https://${s}`);
     const parts = u.pathname.split('/').filter(Boolean);
     if (parts[0]?.startsWith('@')) return { handle: decodeURIComponent(parts[0]) };
     if (parts[0] === 'channel' && parts[1]) return { id: parts[1] };
     if (parts[0] === 'user' && parts[1]) return { username: parts[1], url: u.href };
+    // legacy custom URLs: youtube.com/c/name or youtube.com/name — resolve from the page
     if (parts[0] === 'c' && parts[1]) return { url: u.href };
+    if (parts[0] && !NOT_CHANNELS.has(parts[0])) return { url: `${u.origin}/${parts[0]}` };
   } catch {
-    // not a URL — treat it as a bare handle below
+    // fall through
   }
-  return { handle: `@${s.replace(/^@/, '')}` };
+  return null;
 }
 
 /** Pull the UC… channel id out of a channel page's HTML. */

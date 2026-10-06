@@ -5,13 +5,15 @@
     "tagline": "Be Kind, Please Rewind"
   },
   "youtube": {
-    "channel": "",
+    "channel": "https://www.youtube.com/brutalmoose",
     "aislesFromPlaylists": true,
     "defaultAisle": "Rare Finds",
     "skipShorts": true,
     "titleCleanup": ["\\s*[\\[(](?:full\\s+)?vhs(?:\\s*(?:rip|transfer|capture))?[\\])]", "\\s*\\|\\s*vhs.*$"]
   },
   "aisles": [
+    { "name": "Mystery Tapes", "color": "#00e5c0", "match": ["mystery tape", "mystery tapes", "tapes", "vhs"] },
+    { "name": "Taste Tests", "color": "#ffb000", "match": ["taste test", "food", "foods", "snacks", "chips", "tv dinner", "meals", "frozen", "fast food", "burger king", "wendy's"] },
     { "name": "Feature Films", "color": "#ff3b3b", "match": ["feature film", "full movie", "public domain film"] },
     { "name": "Horror", "color": "#b388ff", "match": ["horror", "monster", "haunted", "zombie"] },
     { "name": "Sci-Fi", "color": "#18ffff", "match": ["sci-fi", "science fiction"] },

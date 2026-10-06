@@ -36,6 +36,10 @@ test('parseChannel accepts handles, ids and URLs', () => {
   assert.deepEqual(parseChannel('UCLA_DiR1FfKNvjuUpBHmylQ'), { id: 'UCLA_DiR1FfKNvjuUpBHmylQ' });
   assert.deepEqual(parseChannel('youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ'), { id: 'UCLA_DiR1FfKNvjuUpBHmylQ' });
   assert.equal(parseChannel('https://www.youtube.com/user/oldname').username, 'oldname');
+  // legacy custom URLs (no @) are resolved from the channel page
+  assert.deepEqual(parseChannel('https://www.youtube.com/brutalmoose'), { url: 'https://www.youtube.com/brutalmoose' });
+  assert.deepEqual(parseChannel('youtube.com/brutalmoose/videos'), { url: 'https://youtube.com/brutalmoose' });
+  assert.equal(parseChannel('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), null);
   assert.equal(parseChannel('  '), null);
 });
 
@@ -108,6 +112,12 @@ test('buildCatalog skips Shorts, live streams and hidden videos', () => {
   const { catalog, skipped } = buildCatalog({ config, overrides: { eeeeeeeeeee: { hidden: true } }, channel, videos });
   assert.deepEqual(catalog.videos.map((x) => x.youtubeId), ['aaaaaaaaaaa']);
   assert.equal(skipped, 4);
+});
+
+test('buildCatalog drops a series suffix that just repeats the aisle name', () => {
+  const cfg = { ...config, aisles: [{ name: 'Mystery Tapes', match: ['mystery tapes'] }] };
+  const { catalog } = buildCatalog({ config: cfg, channel, videos: [v('aaaaaaaaaaa', "What's on the Dead Grandma Tapes? | Mystery Tapes"), v('bbbbbbbbbbb', 'Mystery Tapes')] });
+  assert.deepEqual(catalog.videos.map((x) => x.title), ["What's on the Dead Grandma Tapes?", 'Mystery Tapes']);
 });
 
 test('buildCatalog only lists aisles that have tapes', () => {
