@@ -1,6 +1,6 @@
 # Brutalbuster Video
 
-A first-person 1990s video rental store that runs in the browser. Its shelves hold only the videos from one YouTube channel, [brutalmoose](https://www.youtube.com/brutalmoose) (set in `store.config.json`). Built with Vite and Three.js in plain ES modules: no framework, no TypeScript, and no 3D models or image assets. Everything is painted procedurally on `<canvas>`. The README is the user-facing guide; this file is for working on the code.
+A first-person 1990s video rental store that runs in the browser. Its shelves hold only the videos from one YouTube channel, [brutalmoose](https://www.youtube.com/brutalmoose) (set in `store.config.json`). Built with Vite and Three.js in plain ES modules: no framework, no TypeScript, and no 3D models or image assets. Everything is painted procedurally on `<canvas>`. The README is the user-facing guide; this file is for working on the code. Where the project is headed (theater room, streaming-archive area, VHS vault) and the content decisions so far are in `docs/roadmap.md` and `docs/channel-notes.md`. Read them before changing what gets shelved.
 
 ## Commands
 
