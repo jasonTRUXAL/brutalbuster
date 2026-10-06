@@ -274,7 +274,8 @@ async function main() {
   });
 
   // ------------------------------------------------------------ loop
-  const clock = new THREE.Clock();
+  const timer = new THREE.Timer();
+  timer.connect(document); // ignores time spent in a background tab
   let flushTimer = 0;
   let time = 0;
   const spawn = plan.spawn;
@@ -303,8 +304,9 @@ async function main() {
     inspector.render(renderer);
   }
 
-  renderer.setAnimationLoop(() => {
-    tick(Math.min(clock.getDelta(), 0.05));
+  renderer.setAnimationLoop((timestamp) => {
+    timer.update(timestamp);
+    tick(Math.min(timer.getDelta(), 0.05));
     draw();
   });
 

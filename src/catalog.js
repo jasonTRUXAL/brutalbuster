@@ -1,6 +1,10 @@
 // Loads public/catalog.json (written by `npm run sync`, or the bundled sample)
-// and normalises it into the shape the store expects.
+// and normalises it into the shape the store expects. The file format itself is
+// defined in catalog-schema.js / docs/catalog-format.md.
 import { AISLE_PALETTE } from './config.js';
+import { slug, validateCatalog } from './catalog-schema.js';
+
+export { slug };
 
 const DEFAULT_STORE = {
   name: 'BRUTALBUSTER',
@@ -12,7 +16,13 @@ const DEFAULT_STORE = {
 export async function loadCatalog(url = 'catalog.json') {
   const res = await fetch(url, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Could not load ${url} (${res.status})`);
-  return normalizeCatalog(await res.json());
+  const raw = await res.json();
+  if (import.meta.env?.DEV) {
+    const { errors, warnings } = validateCatalog(raw);
+    for (const e of errors) console.error(`[catalog] ${e}`);
+    for (const w of warnings) console.warn(`[catalog] ${w}`);
+  }
+  return normalizeCatalog(raw);
 }
 
 export function normalizeCatalog(raw) {
@@ -66,8 +76,4 @@ export function normalizeCatalog(raw) {
     videos,
     videoById: new Map(videos.map((v) => [v.id, v])),
   };
-}
-
-export function slug(s) {
-  return String(s).toLowerCase().trim().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'misc';
 }

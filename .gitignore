@@ -8,3 +8,5 @@ public/_*.json
 
 # personal Claude Code settings
 .claude/settings.local.json
+test-results/
+playwright-report/

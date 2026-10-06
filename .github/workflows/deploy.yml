@@ -30,11 +30,16 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - name: Restock from YouTube
         if: ${{ env.YOUTUBE_API_KEY != '' }}
-        # if YouTube is unreachable or over quota, ship the last committed catalog instead
+        # if YouTube is unreachable or over quota (or the result fails validation, in
+        # which case sync leaves the file alone), ship the last committed catalog instead
         continue-on-error: true
         run: npm run sync
+      # lint + catalog contract + unit tests; the browser smoke tests run in ci.yml
+      - run: npm run check:fast
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

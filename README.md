@@ -27,7 +27,7 @@ Open http://localhost:5173. The repo ships with a **sample catalog** of 71 made-
    npm run sync
    ```
 
-   This rewrites `public/catalog.json` with every public upload on the channel: title, description, runtime, publish date and thumbnail. Shorts and live streams are skipped.
+   This rewrites `public/catalog.json` with every public upload on the channel: title, description, runtime, publish date and thumbnail. Shorts and live streams are skipped. The new catalog is checked against the [catalog format](docs/catalog-format.md) before it's written; if it fails, the old one is kept.
 
 Without an API key the sync still works, but it falls back to the channel's public RSS feed, which only lists the **15 newest** uploads. The key is used at build time only and never reaches the browser.
 
@@ -81,6 +81,7 @@ Everything is generated in code. There are no 3D models or image files: box art,
 ```
 src/
   main.js        app state machine, render loop, picking
+  catalog-schema.js  the catalog.json contract (shared with the sync script)
   layout.js      floor-plan solver: store size, shelf runs, which tape goes where
   store.js       room, shelving, signs, checkout counter, entrance, lights
   tapes.js       instanced VHS cases + cover sleeves
@@ -92,8 +93,23 @@ src/
   crt.js         the TV above the counter
   ui.js          splash, HUD, details panel, player, directory
 scripts/
-  sync-youtube.mjs   builds public/catalog.json from the channel
+  sync-youtube.mjs   builds public/catalog.json from the channel (network + files)
+  lib/               parsing and shelving rules (pure, unit tested)
+  check-catalog.mjs  validates a catalog file
+test/
+  unit/          node --test: catalog contract, YouTube parsing, layout invariants
+  smoke/         Playwright: loads the real store and walks the core flows
 ```
+
+## Development and tests
+
+```bash
+npm run check
+```
+
+This runs everything: lint, the catalog check, unit tests, a production build, and browser smoke tests that open the store headlessly (using the Edge or Chrome already installed) and pick up, flip, find and play a tape. It takes about 30 seconds. `npm run check:fast` skips the build and browser tests. GitHub runs the full check on every push.
+
+[CLAUDE.md](CLAUDE.md) explains how the code is organised for anyone, human or AI, working on it.
 
 ## Putting it online
 
