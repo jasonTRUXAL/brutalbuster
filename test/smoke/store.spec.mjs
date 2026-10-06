@@ -2,39 +2,69 @@
 // through the core flows. They drive the app through the dev-only `window.__bb`
 // hooks (see CLAUDE.md), stepping the simulation with __bb.advance() so results
 // don't depend on frame timing. They make no assumptions about which catalog is
-// loaded, so they keep working once the sample tapes are replaced by the real channel.
+// loaded, so they keep working whatever the channel uploads.
+//
+// The store is loaded ONCE per project (desktop / phone) and the tests run in order
+// on that page, resetting between them. Loading is the expensive part — CI machines
+// have no GPU, so every shader compiles in software — and one load per project
+// keeps the suite fast and far from its timeouts there.
 import { test as base, expect } from '@playwright/test';
 
+base.describe.configure({ mode: 'serial' });
+
 const test = base.extend({
-  store: async ({ page }, use) => {
-    const errors = [];
-    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => {
-      if (m.type() !== 'error') return;
-      // we block YouTube on purpose (below); ignore the resulting load failures
-      if (/youtube|ytimg/.test(m.location()?.url || '') || /youtube|ytimg/.test(m.text())) return;
-      errors.push(`console: ${m.text()}`);
-    });
-    // keep tests offline and fast: no thumbnails, no embedded player
-    await page.route(/(youtube(-nocookie)?\.com|ytimg\.com)/, (route) => route.abort());
-    await page.goto('/');
-    await expect(page.locator('#btn-enter')).toBeEnabled({ timeout: 30_000 });
-    await page.waitForFunction(() => window.__bb?.plan);
+  // one page per worker (i.e. per project), shared by every test in this file
+  shared: [
+    async ({ browser }, use, workerInfo) => {
+      const u = workerInfo.project.use;
+      const context = await browser.newContext({
+        baseURL: u.baseURL,
+        viewport: u.viewport,
+        deviceScaleFactor: u.deviceScaleFactor,
+        isMobile: u.isMobile,
+        hasTouch: u.hasTouch,
+        userAgent: u.userAgent,
+      });
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+      page.on('console', (m) => {
+        if (m.type() !== 'error') return;
+        // we block YouTube on purpose (below); ignore the resulting load failures
+        if (/youtube|ytimg/.test(m.location()?.url || '') || /youtube|ytimg/.test(m.text())) return;
+        errors.push(`console: ${m.text()}`);
+      });
+      // keep tests offline and fast: no thumbnails, no embedded player
+      await page.route(/(youtube(-nocookie)?\.com|ytimg\.com)/, (route) => route.abort());
+      await page.goto('/?manual'); // no render loop; frames happen only in advance()
+      await page.waitForFunction(() => window.__bb?.plan, null, { timeout: 90_000 });
+      await use({ page, errors });
+      await context.close();
+    },
+    { scope: 'worker', timeout: 120_000 },
+  ],
+
+  // what each test uses: the shared page, checked for errors and reset afterwards
+  store: async ({ shared }, use, testInfo) => {
+    const { page, errors } = shared;
+    errors.length = 0;
     await use(page);
+    if (testInfo.status !== testInfo.expectedStatus) {
+      await testInfo.attach('screenshot', { body: await page.screenshot(), contentType: 'image/png' });
+    }
     expect(errors, 'the page logged errors').toEqual([]);
+    await page.evaluate(() => {
+      const bb = window.__bb;
+      if (bb.mode === 'watch') document.querySelector('[data-act="eject"]').click();
+      if (bb.mode === 'inspect') bb.putBack(false);
+      bb.advance(0.6); // let any put-back animation finish
+      if (bb.mode !== 'splash') bb.setMode('walk');
+    });
   },
 });
 
 /** Step the simulation by `seconds` and render once. */
 const advance = (page, seconds) => page.evaluate((s) => window.__bb.advance(s), seconds);
-
-/** Click "Enter the store" and make sure we're walking. Headless browsers may refuse
- *  pointer lock (leaving the mouse free, mode 'paused'), so let that settle first. */
-async function enter(page) {
-  await page.locator('#btn-enter').click();
-  await page.waitForTimeout(150);
-  await page.evaluate(() => window.__bb.setMode('walk'));
-}
 
 /** Index of a tape on a genre shelf at eye level (avoids featured/endcap duplicates). */
 const genreSlot = (page, videoIndex = 0) =>
@@ -45,7 +75,10 @@ const genreSlot = (page, videoIndex = 0) =>
     return i >= 0 ? i : plan.slots.findIndex((s) => s.video.id === id);
   }, videoIndex);
 
+const isPhone = (testInfo) => testInfo.project.name === 'phone';
+
 test('splash names the store and counts the stock', async ({ store: page }) => {
+  await expect(page.locator('#btn-enter')).toBeEnabled();
   const { name, count, withThumbs } = await page.evaluate(() => ({
     name: window.__bb.catalog.store.name,
     count: window.__bb.catalog.videos.length,
@@ -56,8 +89,23 @@ test('splash names the store and counts the stock', async ({ store: page }) => {
   await expect(page.locator('#splash-count')).toContainText(withThumbs ? `/${withThumbs}` : `${count}`);
 });
 
+test('entering the store', async ({ store: page }, testInfo) => {
+  await page.locator('#btn-enter').click();
+  await expect(page.locator('#splash')).toBeHidden();
+  if (isPhone(testInfo)) {
+    await expect(page.locator('body')).toHaveClass(/touch/);
+    expect(await page.evaluate(() => window.__bb.mode)).toBe('walk'); // touch: no pointer lock
+    await expect(page.locator('.hud-help.touch-only')).toBeVisible();
+  } else {
+    // headless browsers may refuse pointer lock, leaving the mouse free ('paused')
+    await page.waitForTimeout(150);
+    expect(['walk', 'paused']).toContain(await page.evaluate(() => window.__bb.mode));
+    await expect(page.locator('#pause')).toHaveCount(0); // no blocking pop-up any more
+  }
+});
+
 test('the 3D store actually renders', async ({ store: page }) => {
-  await enter(page);
+  await page.evaluate(() => window.__bb.setMode('walk'));
   const colours = await page.evaluate(() => {
     window.__bb.advance(0.1);
     const gl = window.__bb.renderer.getContext();
@@ -74,8 +122,7 @@ test('the 3D store actually renders', async ({ store: page }) => {
 });
 
 test('pick up a tape, flip it, put it back', async ({ store: page }, testInfo) => {
-  test.skip(testInfo.project.name === 'phone', 'keyboard flow; touch is covered separately');
-  await enter(page);
+  test.skip(isPhone(testInfo), 'keyboard flow; touch is covered separately');
   const slot = await genreSlot(page, 3);
   const title = await page.evaluate((i) => {
     window.__bb.pickUp(i);
@@ -95,13 +142,13 @@ test('pick up a tape, flip it, put it back', async ({ store: page }, testInfo) =
   await page.keyboard.press('Escape');
   await advance(page, 0.6);
   await expect(page.locator('#inspect')).toBeHidden();
+  await expect(page.locator('#resume-hint')).toBeVisible(); // mouse freed, store still visible
   expect(await page.evaluate(() => window.__bb.inspector.state)).toBe('idle');
   expect(await page.evaluate(() => window.__bb.tapes.hiddenSet.size)).toBe(0);
 });
 
 test('find a tape in the directory and walk to it', async ({ store: page }, testInfo) => {
-  test.skip(testInfo.project.name === 'phone', 'covered by the touch test');
-  await enter(page);
+  test.skip(isPhone(testInfo), 'covered by the touch test');
   const title = await page.evaluate(() => window.__bb.catalog.videos[5 % window.__bb.catalog.videos.length].title);
   await page.keyboard.press('f');
   await expect(page.locator('#directory')).toBeVisible();
@@ -120,8 +167,7 @@ test('find a tape in the directory and walk to it', async ({ store: page }, test
 });
 
 test('Watch opens the TV for linked tapes only', async ({ store: page }, testInfo) => {
-  test.skip(testInfo.project.name === 'phone', 'same UI on phone');
-  await enter(page);
+  test.skip(isPhone(testInfo), 'same UI on phone');
   const slot = await genreSlot(page, 1);
   const linked = await page.evaluate((i) => {
     const v = window.__bb.plan.slots[i].video;
@@ -153,13 +199,8 @@ test('Watch opens the TV for linked tapes only', async ({ store: page }, testInf
   }
 });
 
-test('phone: touch controls, tap to pick up, panel at the bottom', async ({ store: page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'phone', 'phone only');
-  await expect(page.locator('body')).toHaveClass(/touch/);
-  await page.locator('#btn-enter').click();
-  expect(await page.evaluate(() => window.__bb.mode)).toBe('walk'); // no pointer lock on touch
-  await expect(page.locator('.hud-help.touch-only')).toBeVisible();
-
+test('phone: pick up a tape, panel at the bottom, put it back', async ({ store: page }, testInfo) => {
+  test.skip(!isPhone(testInfo), 'phone only');
   const slot = await genreSlot(page, 2);
   await page.evaluate((i) => window.__bb.goToVideo(window.__bb.plan.slots[i].video.id), slot);
   await advance(page, 0.8);

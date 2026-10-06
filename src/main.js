@@ -307,11 +307,18 @@ async function main() {
     inspector.render(renderer);
   }
 
-  renderer.setAnimationLoop((timestamp) => {
-    timer.update(timestamp);
-    tick(Math.min(timer.getDelta(), 0.05));
+  // Dev-only `?manual`: no render loop; frames happen only via __bb.advance(). The smoke
+  // tests use it so software-rendered CI machines aren't drawing frames nobody looks at.
+  const manualClock = import.meta.env.DEV && new URLSearchParams(location.search).has('manual');
+  if (!manualClock) {
+    renderer.setAnimationLoop((timestamp) => {
+      timer.update(timestamp);
+      tick(Math.min(timer.getDelta(), 0.05));
+      draw();
+    });
+  } else {
     draw();
-  });
+  }
 
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically

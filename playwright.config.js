@@ -10,12 +10,14 @@ export default defineConfig({
   testMatch: '*.spec.mjs',
   timeout: 60_000,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  // 'github' turns failures into run annotations, readable without signing in to GitHub
+  reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
     channel,
-    // software WebGL so the store renders on GPU-less CI machines too
-    launchOptions: { args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] },
+    // software WebGL so the store renders on GPU-less CI machines too;
+    // PW_SOFTWARE_GL=1 forces it locally to reproduce CI performance
+    launchOptions: { args: ['--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', ...(process.env.PW_SOFTWARE_GL ? ['--use-angle=swiftshader'] : [])] },
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },

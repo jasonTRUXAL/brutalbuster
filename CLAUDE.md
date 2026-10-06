@@ -46,7 +46,7 @@ The picked-up tape is rendered in a separate overlay scene (`inspect.js`) over t
 
 ## Verifying changes in a browser
 
-- **Dev hooks.** In dev builds `window.__bb` exposes `plan`, `catalog`, `camera`, `controls`, `tapes`, `inspector`, `renderer`, `setMode()`, `pickUp(slot)`, `putBack()`, `goToVideo(id)`, `raySlot(ndc)`, `mode` and `hovered`. **`__bb.advance(seconds)`** steps the simulation deterministically and renders once. Use it whenever frames aren't flowing, for example in a hidden or background browser pane where `requestAnimationFrame` is throttled.
+- **Dev hooks.** In dev builds `window.__bb` exposes `plan`, `catalog`, `camera`, `controls`, `tapes`, `inspector`, `renderer`, `setMode()`, `pickUp(slot)`, `putBack()`, `goToVideo(id)`, `raySlot(ndc)`, `mode` and `hovered`. **`__bb.advance(seconds)`** steps the simulation deterministically and renders once. Use it whenever frames aren't flowing, for example in a hidden or background browser pane where `requestAnimationFrame` is throttled. `?manual` turns off the render loop entirely (the smoke tests use it). CI has no GPU, so rendering is all in software there; reproduce that locally with `PW_SOFTWARE_GL=1 npm run test:smoke`.
 - **Pointer lock** is usually refused in automated or embedded browsers. The app stays in `paused` mode (mouse free, "Click to look around" hint), and after a second refusal switches to drag-to-look. In tests, call `__bb.setMode('walk')` after clicking Enter.
 - **Previewing another catalog:** `?catalog=_name.json` loads `public/_name.json` (dev only). Files matching `public/_*.json` are git-ignored.
 - **Thumbnails** come from `i.ytimg.com`, which sends CORS headers. The pixel reads in `covers.js` (black-bar cropping) depend on that.
