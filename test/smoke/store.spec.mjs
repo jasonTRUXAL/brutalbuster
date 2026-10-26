@@ -104,6 +104,27 @@ test('entering the store', async ({ store: page }, testInfo) => {
   }
 });
 
+test('the prize corner is in, and nothing blocks the way in', async ({ store: page }) => {
+  const r = await page.evaluate(() => {
+    const { store, plan } = window.__bb;
+    const RADIUS = 0.28;
+    const blocked = (x, z) => store.colliders.some((c) => x > c.minX - RADIUS && x < c.maxX + RADIUS && z > c.minZ - RADIUS && z < c.maxZ + RADIUS);
+    // walk from the doormat to the spawn point and on to the first aisle
+    const path = [];
+    for (let z = plan.D / 2 - 0.5; z > plan.zFront + 0.5; z -= 0.1) path.push([plan.door.x, z]);
+    return {
+      gachas: store.prizes.gachas.length,
+      pachinko: Boolean(store.prizes.pachinko?.machine),
+      spawnClear: !blocked(plan.spawn.x, plan.spawn.z),
+      pathBlockedAt: path.find(([x, z]) => blocked(x, z)) || null,
+    };
+  });
+  expect(r.gachas).toBeGreaterThan(0);
+  expect(r.pachinko).toBe(true);
+  expect(r.spawnClear).toBe(true);
+  expect(r.pathBlockedAt, 'walkway from the door into the store').toBeNull();
+});
+
 test('the 3D store actually renders', async ({ store: page }) => {
   await page.evaluate(() => window.__bb.setMode('walk'));
   const colours = await page.evaluate(() => {

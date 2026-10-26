@@ -323,7 +323,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, inspector, goToVideo, pickUp, putBack, setMode, raySlot,
+      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, goToVideo, pickUp, putBack, setMode, raySlot,
       get mode() { return mode; },
       get hovered() { return hovered; },
       advance(seconds, step = 1 / 60) {

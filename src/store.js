@@ -11,6 +11,7 @@ import { coverCanvas, coverData } from './covers.js';
 import { FONT } from './fonts.js';
 import { makeCanvas, rng, shuffle } from './util.js';
 import { CrtScreen } from './crt.js';
+import { buildPrizeCorner } from './prizes.js';
 
 // ------------------------------------------------------------- geometry batching
 
@@ -37,6 +38,19 @@ class Batcher {
     scaleBoxUV(g, sx, sy, sz, uvScale);
     g.translate(x, y, z);
     this.add(mat, g);
+  }
+  /** Box positioned in a prop's local space, then moved into the world by matrix `m`. */
+  boxAt(mat, m, x, y, z, sx, sy, sz, uvScale = 1) {
+    const g = new THREE.BoxGeometry(sx, sy, sz);
+    scaleBoxUV(g, sx, sy, sz, uvScale);
+    g.translate(x, y, z);
+    g.applyMatrix4(m);
+    this.add(mat, g);
+  }
+  /** Any geometry (built in a prop's local space) moved into the world by matrix `m`. */
+  geomAt(mat, geo, m) {
+    geo.applyMatrix4(m);
+    this.add(mat, geo);
   }
   /** Box sized along a face's tangent (t), height, and normal (n) axes. */
   aligned(mat, cx, cy, cz, sizeT, sizeY, sizeN, t, uvScale = 1) {
@@ -189,6 +203,7 @@ export function buildStore(scene, plan, catalog) {
   };
   buildCounter(root, B, mat, plan, catalog, animated);
   buildEntrance(root, B, mat, plan, catalog, extraColliders, trackArt);
+  const prizes = buildPrizeCorner({ root, B, mat, plan, colliders: extraColliders, animated });
   buildPosters(root, plan, catalog, trackArt);
 
   B.build(root);
@@ -215,6 +230,7 @@ export function buildStore(scene, plan, catalog) {
   return {
     root,
     colliders: [...plan.colliders, ...extraColliders],
+    prizes,
     update(dt, t) {
       for (const a of animated) a.update(dt, t);
     },
@@ -564,10 +580,7 @@ function buildPosters(root, plan, catalog, trackArt) {
   const y = 2.88;
   for (let z = -D / 2 + 1.5; z < D / 2 - 1.2; z += 2.2) poster(-W / 2 + 0.01, y, z, Math.PI / 2);
   for (let z = -D / 2 + 1.5; z < zFront - 0.3; z += 2.2) poster(W / 2 - 0.01, y, z, -Math.PI / 2);
-  // window posters, facing in
-  const wy = 1.55;
+  // window poster beside the door, facing in (the left-hand window is behind the pachinko)
   const big = 1.2;
-  for (const x of [-W / 2 + 1.2, door.x - door.width / 2 - 1.0]) {
-    if (x > -W / 2 + 0.6) poster(x, wy, D / 2 - 0.03, Math.PI, big * (160 / 280), big);
-  }
+  poster(door.x - door.width / 2 - 1.0, 1.55, D / 2 - 0.03, Math.PI, big * (160 / 280), big);
 }
