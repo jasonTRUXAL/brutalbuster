@@ -342,6 +342,52 @@ body.drag-look #crosshair { display: none; }
 .ip-yt:hover { text-decoration: underline; }
 .ip-note { margin: 12px 0 0; font-size: 0.92rem; color: var(--muted); }
 
+/* ------------------------------------------------------------ prize corner play panel */
+
+#play { position: fixed; inset: 0; z-index: 16; pointer-events: none; }
+.play-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(520px, calc(100% - 32px));
+  padding: 16px 18px 14px;
+  border-radius: 18px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  text-align: center;
+  animation: playIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: opacity 0.25s, transform 0.25s;
+}
+@keyframes playIn { from { opacity: 0; transform: translateY(24px); } }
+#play.leaving .play-panel { opacity: 0; transform: translateY(24px); pointer-events: none; }
+/* wide screens: beside the machine instead of over it */
+@media (min-width: 900px) and (min-aspect-ratio: 1/1) {
+  .play-panel { left: auto; right: max(24px, 3vw); top: 0; bottom: 0; margin: auto 0; height: fit-content; width: 360px; }
+}
+.pp-head { margin-bottom: 12px; }
+.pp-kind { display: block; font: 400 0.9rem/1 var(--display); letter-spacing: 0.22em; color: var(--muted); }
+.pp-title { margin: 4px 0 2px; font: 400 2rem/1 var(--display); letter-spacing: 0.04em; color: var(--yellow); }
+.pp-sub { font-size: 0.88rem; color: var(--muted); }
+.pp-body .pp-main { width: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
+.pp-result { margin: 12px 0 0; font-size: 1.05rem; }
+.pp-dot { display: inline-block; width: 14px; height: 14px; margin-right: 8px; border-radius: 50%; vertical-align: -2px; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7); }
+.pp-soon { display: block; margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
+.pp-meta { margin: 10px 0 0; font: 1.05rem/1 var(--mono); color: var(--muted); }
+.pp-row { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+.pp-label { display: block; font: 400 0.85rem/1 var(--display); letter-spacing: 0.16em; color: var(--muted); text-align: left; }
+.pp-balls { min-width: 96px; text-align: left; }
+.pp-count { font: 2.4rem/1 var(--mono); color: #b9ffcc; text-shadow: 0 0 8px rgba(57, 255, 106, 0.5); }
+.pp-power { flex: 1; }
+.pp-power input { width: 100%; margin-top: 8px; accent-color: var(--magenta); }
+.pp-msg { margin: 12px 0 0; font: 400 1.3rem/1 var(--display); letter-spacing: 0.08em; color: var(--text); min-height: 1.3rem; }
+.pp-msg.hot { color: var(--yellow); text-shadow: 0 0 10px rgba(255, 198, 26, 0.6); }
+.pp-stand { margin-top: 12px; }
+
 /* ------------------------------------------------------------ player */
 
 #player { background: rgba(3, 2, 8, 0.86); z-index: 30; }

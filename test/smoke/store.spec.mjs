@@ -57,7 +57,8 @@ const test = base.extend({
       const bb = window.__bb;
       if (bb.mode === 'watch') document.querySelector('[data-act="eject"]').click();
       if (bb.mode === 'inspect') bb.putBack(false);
-      bb.advance(0.6); // let any put-back animation finish
+      if (bb.mode === 'play') bb.exitPlay(false);
+      bb.advance(1); // let any put-back / stand-up animation finish
       if (bb.mode !== 'splash') bb.setMode('walk');
     });
   },
@@ -231,5 +232,128 @@ test('phone: pick up a tape, panel at the bottom, put it back', async ({ store: 
   await expect(page.locator('[data-act="back"] kbd')).toBeHidden();
   await page.locator('[data-act="back"]').click();
   await advance(page, 0.6);
+  expect(await page.evaluate(() => window.__bb.mode)).toBe('walk');
+});
+
+// ------------------------------------------------------------------ prize corner
+
+/** Stand `back` metres in front of a machine, looking at it. */
+const faceMachine = (page, kind, back = 1.3) =>
+  page.evaluate(
+    ([k, d]) => {
+      const bb = window.__bb;
+      const game = bb.arcade.games.find((g) => g.kind === k);
+      const V = bb.camera.position.constructor;
+      const m = game.refs.machine;
+      const at = m.localToWorld(new V(0, 0, d));
+      const c = m.localToWorld(new V(0, 0, 0));
+      bb.setMode('walk');
+      bb.controls.teleport(at.x, at.z, Math.atan2(-(c.x - at.x), -(c.z - at.z)), -0.3);
+      bb.advance(0.05);
+      return game.title;
+    },
+    [kind, back],
+  );
+
+test('gacha: crouch down, turn the crank, get a capsule, stand up', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'touch version below');
+  const title = await faceMachine(page, 'gacha');
+  await expect(page.locator('#tooltip')).toContainText('crouch down and play');
+  await page.evaluate(() => {
+    window.__prizes = [];
+    window.addEventListener('bb:prize', (e) => window.__prizes.push(e.detail));
+  });
+  await page.keyboard.press('e'); // act on what the crosshair is on
+  await advance(page, 0.9);
+  const crouched = await page.evaluate(() => ({ mode: window.__bb.mode, seated: window.__bb.arcade.seated, eye: window.__bb.camera.position.y }));
+  expect(crouched.mode).toBe('play');
+  expect(crouched.seated).toBe(true);
+  expect(crouched.eye).toBeLessThan(1.2); // crouched, not standing (1.62)
+  await expect(page.locator('#play .pp-title')).toHaveText(title);
+
+  const before = await page.evaluate(() => window.__bb.arcade.active.capsulesLeft);
+  await page.locator('#play .pp-main').click();
+  await advance(page, 3.2);
+  const after = await page.evaluate(() => ({ state: window.__bb.arcade.active.state, left: window.__bb.arcade.active.capsulesLeft, prizes: window.__prizes }));
+  expect(after.state).toBe('done');
+  expect(after.left).toBe(before - 1);
+  expect(after.prizes).toHaveLength(1);
+  expect(after.prizes[0].kind).toBe('capsule');
+  await expect(page.locator('#play .pp-result')).toContainText('capsule');
+
+  await page.keyboard.press('Escape');
+  await advance(page, 1);
+  const stood = await page.evaluate(() => ({ mode: window.__bb.mode, busy: window.__bb.arcade.busy, eye: window.__bb.camera.position.y }));
+  expect(['walk', 'paused']).toContain(stood.mode);
+  expect(stood.busy).toBe(false);
+  expect(stood.eye).toBeGreaterThan(1.5);
+});
+
+test('pachinko: sit down, shoot, the board plays out, FEVER pays', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'touch version below');
+  await faceMachine(page, 'pachinko', 1.6);
+  await page.evaluate(() => window.__bb.enterPlay(window.__bb.hoveredGame));
+  await advance(page, 0.9);
+  expect(await page.evaluate(() => window.__bb.arcade.active?.kind)).toBe('pachinko');
+  const start = await page.evaluate(() => window.__bb.arcade.active.balls);
+
+  await page.keyboard.down('Space');
+  await advance(page, 3);
+  await page.keyboard.up('Space');
+  const shooting = await page.evaluate(() => {
+    const g = window.__bb.arcade.active;
+    return { shot: g.stats.shot, firing: g.firing, inFlight: g.inFlight };
+  });
+  expect(shooting.shot).toBeGreaterThanOrEqual(10); // 5 a second
+  expect(shooting.firing).toBe(false);
+  expect(shooting.inFlight).toBeGreaterThan(0);
+  await advance(page, 10);
+  const settled = await page.evaluate(() => ({ inFlight: window.__bb.arcade.active.inFlight, balls: window.__bb.arcade.active.balls }));
+  expect(settled.inFlight).toBe(0); // every ball finished somewhere
+  expect(settled.balls).toBeLessThanOrEqual(start + 200); // sanity: payouts are bounded
+
+  // force a jackpot spin and check FEVER pays out and announces the prize. Natural START
+  // hits may have left spins running or queued, so let the reels finish first.
+  const fever = await page.evaluate(() => {
+    const g = window.__bb.arcade.active;
+    for (let i = 0; i < 120 && (g.reels.state !== 'idle' || g.reels.queue > 0 || g.fever.t > 0 || g.fever.owed > 0); i++) window.__bb.advance(0.25);
+    const prizes = [];
+    window.addEventListener('bb:prize', (e) => prizes.push(e.detail));
+    const jackpotsBefore = g.stats.jackpots;
+    const before = g.balls;
+    g.rand = () => 0.01; // every spin a jackpot from here on
+    g.queueSpin();
+    let feverOn = false;
+    for (let i = 0; i < 40 && !feverOn; i++) {
+      window.__bb.advance(0.25);
+      feverOn = g.fever.t > 0;
+    }
+    window.__bb.advance(3); // let the payout drip in
+    return { feverOn, gained: g.balls - before, prizes, jackpots: g.stats.jackpots - jackpotsBefore };
+  });
+  expect(fever.feverOn).toBe(true);
+  expect(fever.jackpots).toBe(1);
+  expect(fever.gained).toBeGreaterThanOrEqual(50);
+  expect(fever.prizes.map((p) => p.kind)).toContain('jackpot');
+
+  await page.locator('#play [data-act="stand"]').click();
+  await advance(page, 1);
+  expect(await page.evaluate(() => window.__bb.arcade.busy)).toBe(false);
+});
+
+test('phone: tap a machine to play, tap to turn, stand up', async ({ store: page }, testInfo) => {
+  test.skip(!isPhone(testInfo), 'phone only');
+  await faceMachine(page, 'gacha', 1.2);
+  const vp = page.viewportSize();
+  await page.touchscreen.tap(vp.width / 2, vp.height / 2);
+  await advance(page, 0.9);
+  expect(await page.evaluate(() => window.__bb.mode)).toBe('play');
+  const panel = await page.locator('#play .play-panel').boundingBox();
+  expect(panel.y).toBeGreaterThan(vp.height * 0.4); // docked at the bottom on a phone
+  await page.locator('#play .pp-main').tap();
+  await advance(page, 3.2);
+  expect(await page.evaluate(() => window.__bb.arcade.active.state)).toBe('done');
+  await page.locator('#play [data-act="stand"]').tap();
+  await advance(page, 1);
   expect(await page.evaluate(() => window.__bb.mode)).toBe('walk');
 });

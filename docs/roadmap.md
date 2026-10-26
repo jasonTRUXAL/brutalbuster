@@ -11,6 +11,12 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 
 **Proof-of-concept scope:** the store plus areas 2 and 3.
 
+## Prize corner (built)
+
+- **Gacha machines (4):** playable. Crank, capsule drop, open, and a pile that empties and refills.
+- **Pachinko:** playable, with real ball physics, START/tulip pockets, reels, and FEVER payout.
+- **Next: the reward system.** The rule is "you always win something; it's just what you win". Every capsule and jackpot fires a `bb:prize` event carrying `{ kind, machine, … }`. Ideas so far: each gacha machine's theme maps to a part of the store (Tape Pals → Mystery Tapes, Snack Pals → brutalfoods, Game Pals → the game reviews, TV Pals → Televoid!), and a capsule could contain a tape from that section.
+
 ## Area notes
 
 ### 2. Theater room

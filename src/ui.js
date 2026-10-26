@@ -1,5 +1,6 @@
 // DOM overlays: splash, HUD tooltip, held-tape panel, TV player, store directory.
 import { escapeHtml, makeCanvas } from './util.js';
+import { mountGamePanel } from './arcade-ui.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -11,6 +12,7 @@ export class UI {
     this.inspect = $('#inspect');
     this.player = $('#player');
     this.directory = $('#directory');
+    this.play = $('#play');
     this.tooltip = $('#tooltip');
     this.crosshair = $('#crosshair');
     this.canvas = $('#scene');
@@ -18,6 +20,9 @@ export class UI {
 
     $('#btn-enter').addEventListener('click', () => this.handlers.enter?.());
     $('#btn-find').addEventListener('click', () => this.handlers.find?.());
+    this.play.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act="stand"]')) this.handlers.stand?.();
+    });
     this.inspect.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act) this.handlers[act]?.();
@@ -87,7 +92,8 @@ export class UI {
   setMode(mode) {
     const inStore = mode !== 'splash';
     this.splash.hidden = mode !== 'splash';
-    this.hud.hidden = !inStore || mode === 'watch' || mode === 'inspect';
+    this.hud.hidden = !inStore || mode === 'watch' || mode === 'inspect' || mode === 'play';
+    this.play.hidden = mode !== 'play';
     // 'paused' = mouse released (Esc): the store stays visible, a click recaptures the mouse
     this.resumeHint.hidden = mode !== 'paused';
     document.body.classList.toggle('mouse-free', mode === 'paused');
@@ -96,6 +102,27 @@ export class UI {
     this.directory.hidden = mode !== 'directory';
     this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory');
     if (mode !== 'walk') this.hover(null);
+  }
+
+  /** The control panel for the machine being played. */
+  showPlay(game, { isTouch }) {
+    $('.pp-kind', this.play).textContent = game.kind === 'gacha' ? 'Capsule machine' : 'Pachinko';
+    $('.pp-title', this.play).textContent = game.title;
+    $('.pp-sub', this.play).textContent = game.subtitle;
+    $('[data-act="stand"] kbd', this.play).hidden = isTouch;
+    this.playRefresh = mountGamePanel($('.pp-body', this.play), game, { isTouch });
+    this.playRefresh();
+    this.play.classList.remove('leaving');
+  }
+
+  refreshPlay() {
+    this.playRefresh?.();
+  }
+
+  /** Fade the panel while standing back up. */
+  leavePlay() {
+    this.play.classList.add('leaving');
+    this.playRefresh = null;
   }
 
   hover(info) {

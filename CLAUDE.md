@@ -22,11 +22,12 @@ Each area can change independently as long as it keeps its contract with the oth
 | Workstream | Owns | Contract with the rest |
 |---|---|---|
 | **Content pipeline** | `scripts/`, `store.config.json`, `catalog.overrides.json` | Writes `public/catalog.json` per `docs/catalog-format.md`, validated by `src/catalog-schema.js` |
-| **The store (world)** | `layout.js`, `store.js`, `tapes.js`, `atlas.js`, `covers.js`, `textures.js`, `crt.js`, `config.js` | Reads the normalized catalog; exposes `plan.slots`, `TapeShelves` and `store.colliders` to `main.js` |
-| **Interaction and viewing** | `main.js` (state machine), `controls.js`, `inspect.js`, `ui.js`, `style.css`, `index.html` | Modes are `splash`, `walk`, `paused`, `inspect`, `watch`, `directory`. The next big feature (the viewing experience) lives here |
+| **The store (world)** | `layout.js`, `store.js`, `tapes.js`, `atlas.js`, `covers.js`, `textures.js`, `crt.js`, `config.js`, `prizes.js` (prize-corner props) | Reads the normalized catalog; exposes `plan.slots`, `TapeShelves` and `store.colliders` to `main.js` |
+| **Interaction and viewing** | `main.js` (state machine), `controls.js`, `inspect.js`, `ui.js`, `style.css`, `index.html` | Modes are `splash`, `walk`, `paused`, `inspect`, `watch`, `directory`, `play`. The next big feature (the viewing experience) lives here |
+| **Prize-corner games** | `arcade.js` (hit-testing, crouch/sit camera), `gacha.js`, `pachinko.js`, `pachinko-physics.js`, `arcade-ui.js` | Games get their props from `prizes.js`; every win fires a `bb:prize` window event, which is where the reward system plugs in |
 | **Hosting and ops** | `.github/workflows/`, `vite.config.js`, `package.json` | Static `dist/`; daily restock through `deploy.yml` |
 
-The shared, environment-neutral modules are `src/catalog-schema.js` (imported by Node and the browser, so no DOM or Node APIs), `src/layout.js`, `src/catalog.js` and `src/config.js`. They're all pure, which is what lets them be unit tested.
+The shared, environment-neutral modules are `src/catalog-schema.js` (imported by Node and the browser, so no DOM or Node APIs), `src/layout.js`, `src/catalog.js`, `src/config.js` and `src/pachinko-physics.js`. `BOARD` in `pachinko-physics.js` is the single definition of the pachinko board: the painted playfield, the 3D pins and the physics all read it, so change it there. When retuning the board, check ball lifetimes and pocket rates with the unit tests (`test/unit/pachinko.test.mjs`); flat surfaces trap balls. They're all pure, which is what lets them be unit tested.
 
 ## How a frame of the store comes together
 

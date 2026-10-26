@@ -7,6 +7,7 @@ import { DIM, BRAND } from './config.js';
 import { FONT } from './fonts.js';
 import { makeCanvas, rng, shade } from './util.js';
 import { toTexture, neonTexture } from './textures.js';
+import { BOARD, pinLayout } from './pachinko-physics.js';
 
 // One card theme per machine. They line up with the channel's series, so later each
 // machine could hand out tapes from "its" part of the store.
@@ -48,7 +49,7 @@ export function buildPrizeCorner({ root, B, mat, plan, colliders, animated }) {
     stand: new THREE.MeshStandardMaterial({ color: 0x2a2730, roughness: 0.6, metalness: 0.3 }),
     capsuleTop: new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.0 }),
     capsuleBottom: new THREE.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.15, metalness: 0.0 }),
-    ball: new THREE.MeshStandardMaterial({ color: 0xd8dce4, roughness: 0.15, metalness: 0.95 }),
+    ball: new THREE.MeshStandardMaterial({ color: 0xe9ecf2, roughness: 0.2, metalness: 0.5 }),
     brass: new THREE.MeshStandardMaterial({ color: 0xd8b04a, roughness: 0.3, metalness: 0.9 }),
     frame: new THREE.MeshStandardMaterial({ color: 0x5b2a86, roughness: 0.35, metalness: 0.4 }),
     panel: new THREE.MeshStandardMaterial({ color: 0xc0153f, roughness: 0.4, metalness: 0.2 }),
@@ -71,7 +72,13 @@ export function buildPrizeCorner({ root, B, mat, plan, colliders, animated }) {
     gachas.push(buildGacha(B, mat, mats, group, GACHA_THEMES[i], x, zRow, Math.PI, 101 + i * 17, capsules));
   }
   if (n) {
-    addCapsules(group, mats, capsules);
+    const meshes = addCapsules(group, mats, capsules);
+    // each machine keeps its own pile (instance indices + resting matrices), top first
+    for (const g of gachas) {
+      g.capsuleMeshes = meshes;
+      g.pile = capsules.map((c, index) => ({ ...c, index })).filter((c) => c.owner === g.seed);
+      g.pile.sort((a, b) => b.y - a.y);
+    }
     colliders.push({ minX: startX - 0.25, maxX: startX + (n - 1) * GACHA.SPACING + 0.25, minZ: zRow - 0.24, maxZ: D / 2 });
     // neon over the row, on the header above the front windows
     const sign = neonTexture('PRIZES!', BRAND.magenta, { font: FONT.bungee, size: 120, subtitle: '★ ALWAYS A WINNER ★', subColor: BRAND.yellow });
@@ -150,10 +157,10 @@ function buildGacha(B, mat, mats, parent, theme, x, z, rotY, seed, capsules) {
       const ly = sh + bh + 0.03 + R + layer * 0.043 + r() * 0.004;
       _q.setFromEuler(_e.set(r() * Math.PI * 2, r() * Math.PI * 2, r() * Math.PI * 2));
       _m.compose(_v.set(lx, ly, lz), _q, _s).premultiply(machine.matrixWorld);
-      capsules.push({ matrix: _m.clone(), color: CAPSULE_COLORS[Math.floor(r() * CAPSULE_COLORS.length)] });
+      capsules.push({ owner: seed, y: ly, matrix: _m.clone(), color: CAPSULE_COLORS[Math.floor(r() * CAPSULE_COLORS.length)] });
     }
   }
-  return { machine, crank, theme };
+  return { machine, crank, theme, seed, size: { ...GACHA, standH: sh, bodyH: bh, front } };
 }
 
 /** All capsules from every machine: two instanced hemispheres (coloured top, clear-ish bottom). */
@@ -171,12 +178,12 @@ function addCapsules(parent, mats, capsules) {
   tops.computeBoundingSphere();
   bottoms.computeBoundingSphere();
   parent.add(tops, bottoms);
+  return { tops, bottoms };
 }
 
 // ------------------------------------------------------------------ pachinko machine
 
-const PLAY = { W: 0.52, H: 0.6, Y: 1.26 }; // playfield size and centre height
-const LCD = { x0: 0.3, x1: 0.7, y0: 0.32, y1: 0.56 }; // in playfield 0..1 coordinates
+const PLAY = { W: BOARD.W, H: BOARD.H, Y: 1.26, Z: 0.0505 }; // playfield size, centre height, face depth
 
 function buildPachinko(B, mat, mats, parent, x, z, rotY, animated) {
   const m = new THREE.Matrix4().makeRotationY(rotY).setPosition(x, 0, z);
@@ -189,7 +196,6 @@ function buildPachinko(B, mat, mats, parent, x, z, rotY, animated) {
   B.boxAt(mats.steel, m, 0, 0.965, 0.168, 0.44, 0.03, 0.008);
   B.boxAt(mats.steel, m, -0.06, 0.765, 0.115, 0.3, 0.03, 0.08); // lower tray
   B.geomAt(mats.steel, zCylinder(0.032, 0.06, 20).translate(0.23, 0.8, 0.11), m); // launch handle
-  B.geomAt(mats.vinyl, zCylinder(0.024, 0.02, 20).translate(0.23, 0.8, 0.148), m);
   // chrome frame around the glass
   const gx = PLAY.W / 2 + 0.015;
   const gy0 = PLAY.Y - PLAY.H / 2 - 0.015;
@@ -208,16 +214,24 @@ function buildPachinko(B, mat, mats, parent, x, z, rotY, animated) {
   machine.position.set(x, 0, z);
   machine.rotation.y = rotY;
   parent.add(machine);
+  machine.updateMatrixWorld();
 
-  // playfield art + brass pins in the same positions
+  // the launch knob turns with the power setting, so it's its own object
+  const knob = new THREE.Mesh(zCylinder(0.024, 0.02, 20), mats.vinyl);
+  knob.position.set(0.23, 0.8, 0.148);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.012), mats.steel);
+  grip.position.z = 0.012;
+  knob.add(grip);
+  machine.add(knob);
+
+  // playfield art + brass pins in the same positions (both from the shared BOARD)
   const pins = pinLayout();
   const field = plane(toTexture(playfieldArt(pins)), PLAY.W, PLAY.H);
-  field.position.set(0, PLAY.Y, 0.0505);
+  field.position.set(0, PLAY.Y, PLAY.Z);
   machine.add(field);
-  const pinMesh = new THREE.InstancedMesh(zCylinder(0.0022, 0.02, 5), mats.brass, pins.length);
-  machine.updateMatrixWorld();
-  pins.forEach(([u, v], i) => {
-    _m.makeTranslation((u - 0.5) * PLAY.W, PLAY.Y + (0.5 - v) * PLAY.H, 0.06).premultiply(machine.matrixWorld);
+  const pinMesh = new THREE.InstancedMesh(zCylinder(BOARD.pin, 0.02, 5), mats.brass, pins.length);
+  pins.forEach(([px, py], i) => {
+    _m.makeTranslation(px, PLAY.Y + py, PLAY.Z + 0.0095).premultiply(machine.matrixWorld);
     pinMesh.setMatrixAt(i, _m);
   });
   pinMesh.computeBoundingSphere();
@@ -228,29 +242,35 @@ function buildPachinko(B, mat, mats, parent, x, z, rotY, animated) {
   glass.renderOrder = 2;
   machine.add(glass);
 
-  // a heap of silver balls in the upper tray
+  // a heap of silver balls in the upper tray (the game shows as many as you have)
   const r = rng(808);
   const balls = [];
   for (let ix = 0; ix < 22; ix++) for (let iz = 0; iz < 7; iz++) {
     if (ix > 14 && r() < (ix - 14) / 8) continue;
     balls.push([-0.2 + ix * 0.0115 + (iz % 2) * 0.0057, 0.961 + (r() < 0.25 ? 0.009 : 0), 0.082 + iz * 0.011]);
   }
-  const ballMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0055, 8, 6), mats.ball, balls.length);
+  const ballMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(BOARD.ball, 8, 6), mats.ball, balls.length);
   balls.forEach(([bx, by, bz], i) => ballMesh.setMatrixAt(i, _m.makeTranslation(bx, by, bz).premultiply(machine.matrixWorld)));
   ballMesh.computeBoundingSphere();
   parent.add(ballMesh);
 
-  // chasing bulbs down both sides of the playfield
+  // chasing bulbs down both sides of the playfield; the game speeds them up in FEVER
   const bulbs = toTexture(bulbStrip(), { mipmaps: false });
   bulbs.wrapT = THREE.RepeatWrapping;
   bulbs.repeat.set(1, 3);
   const bulbMat = new THREE.MeshBasicMaterial({ map: bulbs, toneMapped: false });
   for (const s of [-1, 1]) {
     const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.02, PLAY.H), bulbMat);
-    strip.position.set(s * (PLAY.W / 2 + 0.04), PLAY.Y, 0.0505);
+    strip.position.set(s * (PLAY.W / 2 + 0.04), PLAY.Y, PLAY.Z);
     machine.add(strip);
   }
-  animated.push({ update: (dt, t) => (bulbs.offset.y = Math.floor(t * 6) / 8) });
+  const lights = { speed: 6, phase: 0 };
+  animated.push({
+    update: (dt) => {
+      lights.phase += dt * lights.speed;
+      bulbs.offset.y = Math.floor(lights.phase) / 8;
+    },
+  });
 
   const title = neonTexture('BRUTAL FEVER', BRAND.yellow, { font: FONT.bungee, size: 110, padding: 40 });
   const th = 0.13;
@@ -258,28 +278,7 @@ function buildPachinko(B, mat, mats, parent, x, z, rotY, animated) {
   sign.position.set(0, 1.7, 0.042);
   machine.add(sign);
 
-  return { machine, balls: ballMesh, pins: pinMesh, field };
-}
-
-/** Classic staggered pin field, kept off the title, the screen and the pockets. */
-function pinLayout() {
-  const r = rng(4242);
-  const out = [];
-  const aspect = PLAY.H / PLAY.W;
-  for (let row = 0; row < 26; row++) {
-    const v = 0.17 + row * 0.029;
-    for (let col = 0; col < 24; col++) {
-      const u = 0.06 + col * 0.04 + (row % 2) * 0.02;
-      const du = u - 0.5;
-      const dv = (v - 0.52) * aspect;
-      if (du * du + dv * dv > 0.43 * 0.43) continue; // inside the outer rail
-      if (u > LCD.x0 - 0.05 && u < LCD.x1 + 0.05 && v > LCD.y0 - 0.04 && v < LCD.y1 + 0.05) continue;
-      if (Math.abs(u - 0.5) < 0.06 && v > 0.6 && v < 0.68) continue; // start pocket
-      if (r() < 0.22) continue; // gaps make the lanes
-      out.push([u, v]);
-    }
-  }
-  return out;
+  return { machine, play: PLAY, tray: { mesh: ballMesh, capacity: balls.length }, pins: pinMesh, field, knob, lights };
 }
 
 // ------------------------------------------------------------------ canvas art
@@ -468,8 +467,12 @@ function gachaCard(theme, seed) {
 }
 
 function playfieldArt(pins) {
+  const { W, H, rail, lcd, cup, pockets, windmills, ways, outHole } = BOARD;
   const w = 512;
-  const h = Math.round((w * PLAY.H) / PLAY.W);
+  const h = Math.round((w * H) / W);
+  const k = w / W; // pixels per metre
+  const X = (x) => (x / W + 0.5) * w;
+  const Y = (y) => (0.5 - y / H) * h;
   const c = makeCanvas(w, h);
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(w / 2, h * 0.45, 20, w / 2, h * 0.5, h * 0.7);
@@ -491,14 +494,11 @@ function playfieldArt(pins) {
     ctx.fill();
   }
   ctx.restore();
-  // outer rail
-  const cx = w / 2;
-  const cy = h * 0.52;
-  const R = w * 0.45;
+  // outer rail: open at the bottom (canvas angles run clockwise, y down)
   ctx.lineWidth = 10;
   ctx.strokeStyle = '#e8c35a';
   ctx.beginPath();
-  ctx.ellipse(cx, cy, R, R * 1.0, 0, Math.PI * 0.82, Math.PI * 2.18);
+  ctx.arc(X(rail.cx), Y(rail.cy), rail.r * k + 5, Math.PI / 2 + rail.gapHalf, Math.PI / 2 - rail.gapHalf + Math.PI * 2);
   ctx.stroke();
   ctx.lineWidth = 3;
   ctx.strokeStyle = '#fff3c4';
@@ -512,72 +512,75 @@ function playfieldArt(pins) {
   ctx.strokeText('MOOSE RUSH', w / 2, h * 0.115);
   ctx.fillStyle = '#ffe14d';
   ctx.fillText('MOOSE RUSH', w / 2, h * 0.115);
-  // centre screen
-  const lx = LCD.x0 * w;
-  const ly = LCD.y0 * h;
-  const lw = (LCD.x1 - LCD.x0) * w;
-  const lh = (LCD.y1 - LCD.y0) * h;
+  // centre screen (the game draws the live reels on a panel over this)
+  const lx = X(lcd.x0);
+  const ly = Y(lcd.y1);
+  const lw = (lcd.x1 - lcd.x0) * k;
+  const lh = (lcd.y1 - lcd.y0) * k;
+  const f = lcd.frame * k;
   ctx.fillStyle = '#d7d9e0';
   ctx.beginPath();
-  ctx.roundRect(lx - 12, ly - 12, lw + 24, lh + 24, 16);
+  ctx.roundRect(lx - f, ly - f, lw + f * 2, lh + f * 2, 16);
   ctx.fill();
   ctx.fillStyle = '#0b1030';
   ctx.fillRect(lx, ly, lw, lh);
-  ctx.font = `64px ${FONT.bungee}`;
-  for (let i = 0; i < 3; i++) {
-    const rx = lx + (lw * (i + 0.5)) / 3;
-    ctx.fillStyle = 'rgba(255,255,255,.06)';
-    ctx.fillRect(lx + (lw * i) / 3 + 4, ly + 4, lw / 3 - 8, lh - 8);
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#ffe14d';
-    ctx.strokeText('7', rx, ly + lh / 2 + 4);
-    ctx.fillStyle = '#ff2d4a';
-    ctx.fillText('7', rx, ly + lh / 2 + 4);
-  }
-  // pockets: start cup under the screen, tulips either side, out hole at the bottom
-  const cup = (x, y, col, label) => {
-    ctx.fillStyle = col;
+  // ways: brass strips under the screen
+  ctx.lineCap = 'round';
+  for (const wy of ways) {
+    ctx.strokeStyle = '#b8902e';
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(x - 22, y - 10);
-    ctx.quadraticCurveTo(x, y + 26, x + 22, y - 10);
+    ctx.moveTo(X(wy.x0), Y(wy.y0));
+    ctx.lineTo(X(wy.x1), Y(wy.y1));
+    ctx.stroke();
+    ctx.strokeStyle = '#fff1b8';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  // pockets
+  for (const p of pockets) {
+    const px = X(p.x);
+    const half = p.half * k;
+    const mouth = Y(p.y + cup.lip);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.moveTo(px - half, mouth);
+    ctx.quadraticCurveTo(px, Y(p.y - cup.depth) + 10, px + half, mouth);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 3;
     ctx.stroke();
-    if (label) {
+    if (p.label) {
       ctx.fillStyle = '#fff';
       ctx.font = `11px ${FONT.pixel}`;
-      ctx.fillText(label, x, y + 24);
+      ctx.fillText(p.label, px, Y(p.y - cup.depth) + 4);
     }
-  };
-  cup(w / 2, h * 0.645, '#ffe14d', 'START');
-  cup(w * 0.22, h * 0.7, '#ff3b3b');
-  cup(w * 0.78, h * 0.7, '#ff3b3b');
+  }
   ctx.fillStyle = '#0a0518';
   ctx.beginPath();
-  ctx.arc(w / 2, h * 0.93, 26, Math.PI, 0);
+  ctx.arc(X(outHole.x), Y(outHole.y), outHole.r * k, Math.PI, 0);
   ctx.fill();
   // windmills
-  for (const wx of [0.16, 0.84]) {
+  for (const m of windmills) {
     ctx.save();
-    ctx.translate(w * wx, h * 0.42);
+    ctx.translate(X(m.x), Y(m.y));
     for (let i = 0; i < 4; i++) {
       ctx.rotate(Math.PI / 2);
       ctx.fillStyle = i % 2 ? '#29b6f6' : '#ffffff';
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(18, -6);
-      ctx.lineTo(18, 6);
+      ctx.lineTo(m.r * k, -6);
+      ctx.lineTo(m.r * k, 6);
       ctx.fill();
     }
     ctx.restore();
   }
   // pin shadows (the brass pins themselves are real geometry)
   ctx.fillStyle = 'rgba(0,0,0,.45)';
-  for (const [u, v] of pins) {
+  for (const [x, y] of pins) {
     ctx.beginPath();
-    ctx.arc(u * w + 1.5, v * h + 1.5, 2.2, 0, Math.PI * 2);
+    ctx.arc(X(x) + 1.5, Y(y) + 1.5, 2.2, 0, Math.PI * 2);
     ctx.fill();
   }
   return c;
