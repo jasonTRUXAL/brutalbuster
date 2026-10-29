@@ -7,7 +7,7 @@ const $ = (sel, root) => root.querySelector(sel);
 export function mountGamePanel(el, game, { isTouch }) {
   el.innerHTML = '';
   if (game.kind === 'gacha') return gachaPanel(el, game, isTouch);
-  return pachinkoPanel(el, game, isTouch);
+  return luckyHitPanel(el, game, isTouch);
 }
 
 function gachaPanel(el, game, isTouch) {
@@ -29,37 +29,29 @@ function gachaPanel(el, game, isTouch) {
   };
 }
 
-function pachinkoPanel(el, game, isTouch) {
+function luckyHitPanel(el, game, isTouch) {
+  const hint = isTouch ? 'Slide to pick your spot, then drop.' : 'Aim with the mouse or <kbd>←</kbd><kbd>→</kbd>, then drop.';
   el.innerHTML = `
-    <div class="pp-row">
-      <div class="pp-balls"><span class="pp-label">Balls</span><span class="pp-count"></span></div>
-      <label class="pp-power"><span class="pp-label">Launch power ${isTouch ? '' : '<kbd>←</kbd><kbd>→</kbd>'}</span>
-        <input type="range" min="0" max="100" step="1" aria-label="Launch power" /></label>
-    </div>
-    <button class="btn primary big pp-main pp-hold" type="button">Hold to shoot ${isTouch ? '' : '<kbd>Space</kbd>'}</button>
+    <p class="pp-hint">${hint}</p>
+    <label class="pp-aim"><span class="pp-label">Drop spot</span>
+      <input type="range" min="-100" max="100" step="1" aria-label="Drop spot" /></label>
+    <button class="btn primary big pp-main" type="button">Drop ${isTouch ? '' : '<kbd>Space</kbd>'}</button>
     <p class="pp-msg"></p>
     <p class="pp-meta"></p>`;
-  const hold = $('.pp-hold', el);
-  const on = (e) => {
-    e.preventDefault();
-    hold.setPointerCapture?.(e.pointerId);
-    game.setFiring(true);
-  };
-  const off = () => game.setFiring(false);
-  hold.addEventListener('pointerdown', on);
-  hold.addEventListener('pointerup', off);
-  hold.addEventListener('pointercancel', off);
-  hold.addEventListener('lostpointercapture', off);
+  const btn = $('.pp-main', el);
+  btn.addEventListener('click', () => game.letGo());
   const slider = $('input', el);
-  slider.addEventListener('input', () => game.setPower(slider.value / 100));
-  const count = $('.pp-count', el);
+  slider.addEventListener('input', () => game.setAim((slider.value / 100) * game.aimRange));
   const msg = $('.pp-msg', el);
   const meta = $('.pp-meta', el);
   return () => {
-    count.textContent = game.balls;
-    if (document.activeElement !== slider) slider.value = Math.round(game.power * 100);
-    msg.textContent = game.message;
-    msg.classList.toggle('hot', /FEVER|REACH|START|Tulip/.test(game.message));
-    meta.textContent = `Shot ${game.stats.shot} · won ${game.stats.won} · spins ${game.stats.spins} · jackpots ${game.stats.jackpots}`;
+    btn.disabled = game.busy;
+    if (document.activeElement !== slider) slider.value = Math.round((game.aim / game.aimRange) * 100);
+    slider.disabled = game.busy;
+    msg.innerHTML = game.result
+      ? `${escapeHtml(game.message)} <span class="pp-soon">${game.result.jackpot ? 'The rare-prize slot.' : `You won a ${escapeHtml(game.result.themeName)} prize.`} Prizes go in soon.</span>`
+      : escapeHtml(game.message);
+    msg.classList.toggle('hot', Boolean(game.result));
+    meta.textContent = `New nails every day · drops ${game.stats.drops} · jackpots ${game.stats.jackpots}`;
   };
 }

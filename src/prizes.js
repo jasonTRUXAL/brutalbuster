@@ -1,5 +1,6 @@
 // The prize corner by the entrance: a row of capsule-toy (gacha) machines along the
-// front window and a pachinko machine in the front-left corner. Props only for now.
+// front window and a Lucky Hit drop board (the street stall from Shenmue) in the
+// front-left corner.
 // Playing them and the always-win prize draw come later (docs/roadmap.md), so the
 // moving parts (cranks, ball tray, lights) are kept as separate objects to animate.
 import * as THREE from 'three';
@@ -7,7 +8,7 @@ import { DIM, BRAND } from './config.js';
 import { FONT } from './fonts.js';
 import { makeCanvas, rng, shade } from './util.js';
 import { toTexture, neonTexture } from './textures.js';
-import { BOARD, pinLayout } from './pachinko-physics.js';
+import { LUCKY, boardForDay, dayNumber } from './luckyhit-physics.js';
 
 // One card theme per machine. They line up with the channel's series, so later each
 // machine could hand out tapes from "its" part of the store.
@@ -39,7 +40,7 @@ function zCylinder(r, len, seg = 16) {
   return new THREE.CylinderGeometry(r, r, len, seg).rotateX(Math.PI / 2);
 }
 
-export function buildPrizeCorner({ root, B, mat, plan, colliders, animated }) {
+export function buildPrizeCorner({ root, B, mat, plan, colliders }) {
   const { W, D, door, counter } = plan;
   const group = new THREE.Group();
   group.name = 'prize-corner';
@@ -49,11 +50,14 @@ export function buildPrizeCorner({ root, B, mat, plan, colliders, animated }) {
     stand: new THREE.MeshStandardMaterial({ color: 0x2a2730, roughness: 0.6, metalness: 0.3 }),
     capsuleTop: new THREE.MeshStandardMaterial({ roughness: 0.25, metalness: 0.0 }),
     capsuleBottom: new THREE.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.15, metalness: 0.0 }),
-    ball: new THREE.MeshStandardMaterial({ color: 0xe9ecf2, roughness: 0.2, metalness: 0.5 }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xd8b04a, roughness: 0.3, metalness: 0.9 }),
-    frame: new THREE.MeshStandardMaterial({ color: 0x5b2a86, roughness: 0.35, metalness: 0.4 }),
-    panel: new THREE.MeshStandardMaterial({ color: 0xc0153f, roughness: 0.4, metalness: 0.2 }),
-    vinyl: new THREE.MeshStandardMaterial({ color: 0xb3122e, roughness: 0.55 }),
+    // a bright, slightly self-lit ball so it reads against the painted board
+    ball: new THREE.MeshStandardMaterial({ color: 0xf6f8fc, roughness: 0.12, metalness: 0.35, emissive: 0x2a2a30 }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xd8b04a, roughness: 0.3, metalness: 0.6 }),
+    gold: new THREE.MeshStandardMaterial({ color: 0xffc933, roughness: 0.25, metalness: 0.6, emissive: 0x3a2a00 }),
+    wood: new THREE.MeshStandardMaterial({ color: 0x8a5a34, roughness: 0.75 }),
+    woodDark: new THREE.MeshStandardMaterial({ color: 0x4f3020, roughness: 0.8 }),
+    toy: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }),
+    nailHead: new THREE.MeshStandardMaterial({ color: 0xfff0b8, roughness: 0.3, metalness: 0.3, emissive: 0x5a4818 }),
     // brighter than the store's chrome: with nothing to reflect, very metallic surfaces read as black
     steel: new THREE.MeshStandardMaterial({ color: 0xc9ccd6, roughness: 0.32, metalness: 0.5 }),
     plate: new THREE.MeshStandardMaterial({ color: 0x6f7380, roughness: 0.45, metalness: 0.5 }),
@@ -89,13 +93,17 @@ export function buildPrizeCorner({ root, B, mat, plan, colliders, animated }) {
     group.add(neon);
   }
 
-  // ------------------------------------------------------------ pachinko, front-left corner
-  const px = -W / 2 + DIM.WALL_UNIT + 0.45;
-  const pz = D / 2 - 0.26;
-  const pachinko = buildPachinko(B, mat, mats, group, px, pz, Math.PI, animated);
-  colliders.push({ minX: px - 0.35, maxX: px + 0.35, minZ: pz - 0.8, maxZ: D / 2 });
+  // ------------------------------------------------------------ Lucky Hit, front-left corner
+  // today's board (UTC): nail pattern and jackpot slot change every day.
+  // Dev only: ?luckyday=N previews the board N days from now.
+  const preview = import.meta.env?.DEV ? Number(new URLSearchParams(location.search).get('luckyday')) || 0 : 0;
+  const board = boardForDay(dayNumber() + preview);
+  const lx = -W / 2 + DIM.WALL_UNIT + 0.62;
+  const lz = D / 2 - 0.42;
+  const luckyHit = buildLuckyHitStall(B, mat, mats, group, board, lx, lz, Math.PI);
+  colliders.push({ minX: lx - TABLE.W / 2 - 0.02, maxX: lx + TABLE.W / 2 + 0.02, minZ: lz - TABLE.D / 2 - 0.02, maxZ: D / 2 });
 
-  return { group, gachas, pachinko };
+  return { group, gachas, luckyHit };
 }
 
 // ------------------------------------------------------------------ gacha machine
@@ -181,104 +189,128 @@ function addCapsules(parent, mats, capsules) {
   return { tops, bottoms };
 }
 
-// ------------------------------------------------------------------ pachinko machine
+// ------------------------------------------------------------------ Lucky Hit stall
 
-const PLAY = { W: BOARD.W, H: BOARD.H, Y: 1.26, Z: 0.0505 }; // playfield size, centre height, face depth
+const TILT = (14 * Math.PI) / 180; // the board leans back against its prop
+const TABLE = { W: 1.0, D: 0.56, H: 0.78 };
+const THEME_STYLE = {
+  tape: { color: '#e3262c', label: 'TAPE' },
+  snack: { color: '#1fa64a', label: 'SNACK' },
+  game: { color: '#f2c200', label: 'GAME' },
+  tv: { color: '#2a63d8', label: 'TV' },
+  rare: { color: '#ffcf33', label: '★' },
+};
 
-function buildPachinko(B, mat, mats, parent, x, z, rotY, animated) {
+/**
+ * A wooden board leaning on a little table, nails hammered into today's pattern, prize
+ * slots along the bottom with a toy standing in front of each. `board` is the board of
+ * the day from luckyhit-physics.js; the nails and slots come straight from it.
+ */
+function buildLuckyHitStall(B, mat, mats, parent, board, x, z, rotY) {
   const m = new THREE.Matrix4().makeRotationY(rotY).setPosition(x, 0, z);
-  // stand, body, lower panel with ball trays
-  B.boxAt(mat.trim, m, 0, 0.36, 0, 0.66, 0.72, 0.46);
-  B.boxAt(mats.steel, m, 0, 0.715, 0.231, 0.66, 0.02, 0.012);
-  B.boxAt(mats.frame, m, 0, 1.17, -0.02, 0.62, 0.9, 0.14);
-  B.boxAt(mats.panel, m, 0, 0.83, 0.065, 0.6, 0.2, 0.03);
-  B.boxAt(mats.steel, m, 0, 0.94, 0.12, 0.44, 0.03, 0.1); // upper tray
-  B.boxAt(mats.steel, m, 0, 0.965, 0.168, 0.44, 0.03, 0.008);
-  B.boxAt(mats.steel, m, -0.06, 0.765, 0.115, 0.3, 0.03, 0.08); // lower tray
-  B.geomAt(mats.steel, zCylinder(0.032, 0.06, 20).translate(0.23, 0.8, 0.11), m); // launch handle
-  // chrome frame around the glass
-  const gx = PLAY.W / 2 + 0.015;
-  const gy0 = PLAY.Y - PLAY.H / 2 - 0.015;
-  const gy1 = PLAY.Y + PLAY.H / 2 + 0.015;
-  B.boxAt(mats.steel, m, 0, gy1, 0.064, PLAY.W + 0.06, 0.03, 0.03);
-  B.boxAt(mats.steel, m, 0, gy0, 0.064, PLAY.W + 0.06, 0.03, 0.03);
-  for (const s of [-1, 1]) B.boxAt(mats.steel, m, s * gx, PLAY.Y, 0.064, 0.03, PLAY.H + 0.06, 0.03);
-  // title box on top
-  B.boxAt(mats.frame, m, 0, 1.7, -0.02, 0.62, 0.16, 0.12);
-  // stool
-  B.geomAt(mats.steel, new THREE.CylinderGeometry(0.21, 0.21, 0.02, 24).translate(0, 0.01, 0.55), m);
-  B.geomAt(mats.steel, new THREE.CylinderGeometry(0.025, 0.025, 0.5, 12).translate(0, 0.26, 0.55), m);
-  B.geomAt(mats.vinyl, new THREE.CylinderGeometry(0.17, 0.16, 0.07, 24).translate(0, 0.545, 0.55), m);
+  const wood = mats.wood;
+  // table
+  B.boxAt(wood, m, 0, TABLE.H - 0.02, 0, TABLE.W, 0.04, TABLE.D);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) B.boxAt(mats.woodDark, m, sx * (TABLE.W / 2 - 0.05), (TABLE.H - 0.04) / 2, sz * (TABLE.D / 2 - 0.05), 0.05, TABLE.H - 0.04, 0.05);
+  for (const sz of [-1, 1]) B.boxAt(mats.woodDark, m, 0, 0.18, sz * (TABLE.D / 2 - 0.05), TABLE.W - 0.1, 0.04, 0.03);
 
-  const machine = new THREE.Group();
-  machine.position.set(x, 0, z);
-  machine.rotation.y = rotY;
-  parent.add(machine);
-  machine.updateMatrixWorld();
+  const stall = new THREE.Group();
+  stall.position.set(x, 0, z);
+  stall.rotation.y = rotY;
+  parent.add(stall);
 
-  // the launch knob turns with the power setting, so it's its own object
-  const knob = new THREE.Mesh(zCylinder(0.024, 0.02, 20), mats.vinyl);
-  knob.position.set(0.23, 0.8, 0.148);
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.04, 0.012), mats.steel);
-  grip.position.z = 0.012;
-  knob.add(grip);
-  machine.add(knob);
+  // the board leans back from the table top; everything on it lives in its own space
+  const { W, H, inner, slots, pin, ball, dropY } = LUCKY;
+  const foot = -0.12; // where its bottom edge rests on the table
+  const boardGroup = new THREE.Group();
+  boardGroup.position.set(0, TABLE.H + (H / 2) * Math.cos(TILT), foot - (H / 2) * Math.sin(TILT));
+  boardGroup.rotation.x = -TILT;
+  stall.add(boardGroup);
+  stall.updateMatrixWorld(true);
+  const bm = boardGroup.matrixWorld;
 
-  // playfield art + brass pins in the same positions (both from the shared BOARD)
-  const pins = pinLayout();
-  const field = plane(toTexture(playfieldArt(pins)), PLAY.W, PLAY.H);
-  field.position.set(0, PLAY.Y, PLAY.Z);
-  machine.add(field);
-  const pinMesh = new THREE.InstancedMesh(zCylinder(BOARD.pin, 0.02, 5), mats.brass, pins.length);
-  pins.forEach(([px, py], i) => {
-    _m.makeTranslation(px, PLAY.Y + py, PLAY.Z + 0.0095).premultiply(machine.matrixWorld);
-    pinMesh.setMatrixAt(i, _m);
-  });
-  pinMesh.computeBoundingSphere();
-  parent.add(pinMesh);
-
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(PLAY.W, PLAY.H), mat.glass);
-  glass.position.set(0, PLAY.Y, 0.074);
-  glass.renderOrder = 2;
-  machine.add(glass);
-
-  // a heap of silver balls in the upper tray (the game shows as many as you have)
-  const r = rng(808);
-  const balls = [];
-  for (let ix = 0; ix < 22; ix++) for (let iz = 0; iz < 7; iz++) {
-    if (ix > 14 && r() < (ix - 14) / 8) continue;
-    balls.push([-0.2 + ix * 0.0115 + (iz % 2) * 0.0057, 0.961 + (r() < 0.25 ? 0.009 : 0), 0.082 + iz * 0.011]);
-  }
-  const ballMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(BOARD.ball, 8, 6), mats.ball, balls.length);
-  balls.forEach(([bx, by, bz], i) => ballMesh.setMatrixAt(i, _m.makeTranslation(bx, by, bz).premultiply(machine.matrixWorld)));
-  ballMesh.computeBoundingSphere();
-  parent.add(ballMesh);
-
-  // chasing bulbs down both sides of the playfield; the game speeds them up in FEVER
-  const bulbs = toTexture(bulbStrip(), { mipmaps: false });
-  bulbs.wrapT = THREE.RepeatWrapping;
-  bulbs.repeat.set(1, 3);
-  const bulbMat = new THREE.MeshBasicMaterial({ map: bulbs, toneMapped: false });
+  B.boxAt(wood, bm, 0, 0, -0.0125, W, H, 0.025); // the board itself
   for (const s of [-1, 1]) {
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.02, PLAY.H), bulbMat);
-    strip.position.set(s * (PLAY.W / 2 + 0.04), PLAY.Y, PLAY.Z);
-    machine.add(strip);
+    B.boxAt(mats.woodDark, bm, s * (W / 2 - 0.012), 0, 0.006, 0.024, H, 0.014); // edge trim
+    B.boxAt(mats.woodDark, bm, s * (inner + 0.008), (slots.y0 + H / 2 - 0.05) / 2, 0.012, 0.016, H / 2 - 0.05 - slots.y0, 0.024); // side rails
   }
-  const lights = { speed: 6, phase: 0 };
-  animated.push({
-    update: (dt) => {
-      lights.phase += dt * lights.speed;
-      bulbs.offset.y = Math.floor(lights.phase) / 8;
-    },
+  B.boxAt(mats.woodDark, bm, 0, H / 2 - 0.012, 0.006, W, 0.024, 0.014);
+  B.boxAt(mats.woodDark, bm, 0, slots.y0 - 0.008, 0.012, 2 * inner + 0.032, 0.016, 0.024); // slot floor
+  B.geomAt(mats.brass, new THREE.CylinderGeometry(0.004, 0.004, 2 * inner, 10).rotateZ(Math.PI / 2).translate(0, dropY + 0.03, 0.02), bm); // drop rail
+
+  // painted face: wood, art, slot colours and labels, nail shadows
+  const face = plane(toTexture(luckyBoardArt(board)), W, H);
+  face.position.z = 0.0005;
+  boardGroup.add(face);
+
+  // nails (today's pattern) and slot dividers, instanced
+  const nails = new THREE.InstancedMesh(zCylinder(pin, 0.022, 6), mats.brass, board.pins.length);
+  // bright heads, so the day's pattern reads clearly against the painted art
+  const nailHeads = new THREE.InstancedMesh(zCylinder(pin * 1.7, 0.003, 10), mats.nailHead, board.pins.length);
+  board.pins.forEach(([px, py], i) => {
+    nails.setMatrixAt(i, _m.makeTranslation(px, py, 0.011).premultiply(bm));
+    nailHeads.setMatrixAt(i, _m.makeTranslation(px, py, 0.0225).premultiply(bm));
   });
+  nails.computeBoundingSphere();
+  nailHeads.computeBoundingSphere();
+  parent.add(nails, nailHeads);
+  const dividers = board.slots.slice(1);
+  const divMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(slots.divider, slots.y1 - slots.y0, 0.024), mats.brass, dividers.length);
+  dividers.forEach((s, i) => divMesh.setMatrixAt(i, _m.makeTranslation(s.x0 - slots.divider / 2, (slots.y0 + slots.y1) / 2, 0.012).premultiply(bm)));
+  divMesh.computeBoundingSphere();
+  parent.add(divMesh);
 
-  const title = neonTexture('BRUTAL FEVER', BRAND.yellow, { font: FONT.bungee, size: 110, padding: 40 });
-  const th = 0.13;
-  const sign = plane(title, Math.min(0.6, th * title.userData.aspect), th, { basic: true, additive: true });
-  sign.position.set(0, 1.7, 0.042);
-  machine.add(sign);
+  // the ball and the little cup that holds it on the drop rail (the game moves these)
+  const holder = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.01, 0.014, 16, 1, true), mats.brass);
+  holder.material = mats.brass.clone();
+  holder.material.side = THREE.DoubleSide;
+  holder.position.set(0, dropY + 0.006, ball + 0.004);
+  boardGroup.add(holder);
+  const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(ball, 20, 14), mats.ball);
+  ballMesh.position.set(0, dropY, ball + 0.002);
+  boardGroup.add(ballMesh);
+  // glow over the slot a ball lands in
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(1, slots.y1 - slots.y0), new THREE.MeshBasicMaterial({ color: 0xfff1b0, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }));
+  glow.position.set(0, (slots.y0 + slots.y1) / 2, 0.002);
+  boardGroup.add(glow);
 
-  return { machine, play: PLAY, tray: { mesh: ballMesh, capacity: balls.length }, pins: pinMesh, field, knob, lights };
+  // a toy standing in front of each slot (gold trophy for the jackpot)
+  const toys = board.slots.filter((s) => !s.jackpot);
+  const bodies = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.011, 0.014, 0.034, 12), mats.toy, toys.length);
+  const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.013, 14, 10), mats.toy, toys.length);
+  const c = new THREE.Color();
+  toys.forEach((s, i) => {
+    const tx = (s.x0 + s.x1) / 2;
+    bodies.setMatrixAt(i, _m.makeTranslation(tx, TABLE.H + 0.017, foot + 0.05).premultiply(stall.matrixWorld));
+    heads.setMatrixAt(i, _m.makeTranslation(tx, TABLE.H + 0.046, foot + 0.05).premultiply(stall.matrixWorld));
+    bodies.setColorAt(i, c.set(THEME_STYLE[s.theme].color));
+    heads.setColorAt(i, c.set(THEME_STYLE[s.theme].color).offsetHSL(0, -0.1, 0.12));
+  });
+  for (const im of [bodies, heads]) im.computeBoundingSphere();
+  parent.add(bodies, heads);
+  const jp = board.slots.find((s) => s.jackpot);
+  const trophy = new THREE.Group();
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.006, 0.026, 14), mats.gold);
+  cup.position.y = 0.032;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.02, 8), mats.gold);
+  stem.position.y = 0.012;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.006, 0.022), mats.gold);
+  base.position.y = 0.003;
+  trophy.add(cup, stem, base);
+  trophy.position.set((jp.x0 + jp.x1) / 2, TABLE.H, foot + 0.05);
+  stall.add(trophy);
+
+  // signs on the table: the stall card and today's chalkboard
+  const card = plane(toTexture(luckyCard()), 0.15, 0.19);
+  card.position.set(0.38, TABLE.H + 0.095, 0.12);
+  card.rotation.set(-0.2, -0.25, 0);
+  stall.add(card);
+  const chalk = plane(toTexture(chalkboard(board)), 0.22, 0.16);
+  chalk.position.set(-0.36, TABLE.H + 0.085, 0.12);
+  chalk.rotation.set(-0.25, 0.25, 0);
+  stall.add(chalk);
+
+  return { stall, board, boardGroup, holder, ball: ballMesh, glow, foot };
 }
 
 // ------------------------------------------------------------------ canvas art
@@ -466,139 +498,149 @@ function gachaCard(theme, seed) {
   return c;
 }
 
-function playfieldArt(pins) {
-  const { W, H, rail, lcd, cup, pockets, windmills, ways, outHole } = BOARD;
-  const w = 512;
-  const h = Math.round((w * H) / W);
-  const k = w / W; // pixels per metre
+/** Hand-painted look for the board face: wood planks, the four pals, slot colours. */
+function luckyBoardArt(board) {
+  const { W, H, inner, slots, field } = LUCKY;
+  const k = 800; // pixels per metre
+  const w = Math.round(W * k);
+  const h = Math.round(H * k);
   const X = (x) => (x / W + 0.5) * w;
   const Y = (y) => (0.5 - y / H) * h;
   const c = makeCanvas(w, h);
   const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(w / 2, h * 0.45, 20, w / 2, h * 0.5, h * 0.7);
-  g.addColorStop(0, '#ff5fa8');
-  g.addColorStop(0.45, '#8a2be2');
-  g.addColorStop(1, '#1a0b3d');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
-  // starburst
-  ctx.save();
-  ctx.translate(w / 2, h * 0.45);
-  ctx.fillStyle = 'rgba(255,255,255,.07)';
-  for (let i = 0; i < 24; i++) {
-    ctx.rotate((Math.PI * 2) / 24);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-18, -h);
-    ctx.lineTo(18, -h);
-    ctx.fill();
+  const r = rng(board.day * 31 + 7);
+
+  // planks with grain
+  const planks = 4;
+  for (let i = 0; i < planks; i++) {
+    const x0 = (w * i) / planks;
+    const g = ctx.createLinearGradient(x0, 0, x0 + w / planks, 0);
+    const base = ['#9a6539', '#8e5b31', '#a06b3d', '#93603a'][i];
+    g.addColorStop(0, shade(base, -0.08));
+    g.addColorStop(0.5, base);
+    g.addColorStop(1, shade(base, -0.12));
+    ctx.fillStyle = g;
+    ctx.fillRect(x0, 0, w / planks, h);
+    ctx.strokeStyle = 'rgba(60,30,10,.18)';
+    ctx.lineWidth = 1.2;
+    for (let n = 0; n < 14; n++) {
+      const gx = x0 + r() * (w / planks);
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      for (let y = 0; y <= h; y += 40) ctx.lineTo(gx + Math.sin(y / 90 + n) * 4 + (r() - 0.5) * 2, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(40,20,5,.45)';
+    ctx.fillRect(x0 - 1, 0, 2, h);
   }
-  ctx.restore();
-  // outer rail: open at the bottom (canvas angles run clockwise, y down)
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = '#e8c35a';
+
+  // painted art panel in the middle of the field, nails go right over it
+  const px0 = X(-inner + 0.02);
+  const py0 = Y(field.y1 - 0.02);
+  const pw = X(inner - 0.02) - px0;
+  const ph = Y(field.y0 + 0.08) - py0;
+  ctx.save();
   ctx.beginPath();
-  ctx.arc(X(rail.cx), Y(rail.cy), rail.r * k + 5, Math.PI / 2 + rail.gapHalf, Math.PI / 2 - rail.gapHalf + Math.PI * 2);
+  ctx.roundRect(px0, py0, pw, ph, 24);
+  ctx.clip();
+  const art = makeCanvas(Math.round(pw), Math.round(ph));
+  swirl(art.getContext('2d'), art.width, art.height, '#ffd23f', '#ff6a3d', art.width / 2, art.height * 0.55, 12, 0.012);
+  ctx.globalAlpha = 0.72; // let the wood show through a little; the nails need to read on top
+  ctx.drawImage(art, px0, py0);
+  ctx.globalAlpha = 1;
+  const kinds = ['tape', 'burger', 'controller', 'tv'];
+  kinds.forEach((kind, i) => mascot(ctx, kind, px0 + pw * (0.25 + (i % 2) * 0.5), py0 + ph * (0.3 + Math.floor(i / 2) * 0.42), 0.95));
+  ctx.restore();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#f4ecd8';
+  ctx.beginPath();
+  ctx.roundRect(px0, py0, pw, ph, 24);
   ctx.stroke();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#fff3c4';
-  ctx.stroke();
-  // title
+
+  // title across the top, under the drop rail
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `44px ${FONT.bungee}`;
+  ctx.font = `46px ${FONT.bungee}`;
   ctx.lineWidth = 8;
-  ctx.strokeStyle = '#2a0b4a';
-  ctx.strokeText('MOOSE RUSH', w / 2, h * 0.115);
+  ctx.strokeStyle = '#5a1010';
+  ctx.strokeText('LUCKY HIT', w / 2, Y(LUCKY.dropY - 0.035));
   ctx.fillStyle = '#ffe14d';
-  ctx.fillText('MOOSE RUSH', w / 2, h * 0.115);
-  // centre screen (the game draws the live reels on a panel over this)
-  const lx = X(lcd.x0);
-  const ly = Y(lcd.y1);
-  const lw = (lcd.x1 - lcd.x0) * k;
-  const lh = (lcd.y1 - lcd.y0) * k;
-  const f = lcd.frame * k;
-  ctx.fillStyle = '#d7d9e0';
-  ctx.beginPath();
-  ctx.roundRect(lx - f, ly - f, lw + f * 2, lh + f * 2, 16);
-  ctx.fill();
-  ctx.fillStyle = '#0b1030';
-  ctx.fillRect(lx, ly, lw, lh);
-  // ways: brass strips under the screen
-  ctx.lineCap = 'round';
-  for (const wy of ways) {
-    ctx.strokeStyle = '#b8902e';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(X(wy.x0), Y(wy.y0));
-    ctx.lineTo(X(wy.x1), Y(wy.y1));
-    ctx.stroke();
-    ctx.strokeStyle = '#fff1b8';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-  // pockets
-  for (const p of pockets) {
-    const px = X(p.x);
-    const half = p.half * k;
-    const mouth = Y(p.y + cup.lip);
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.moveTo(px - half, mouth);
-    ctx.quadraticCurveTo(px, Y(p.y - cup.depth) + 10, px + half, mouth);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    if (p.label) {
-      ctx.fillStyle = '#fff';
-      ctx.font = `11px ${FONT.pixel}`;
-      ctx.fillText(p.label, px, Y(p.y - cup.depth) + 4);
-    }
-  }
-  ctx.fillStyle = '#0a0518';
-  ctx.beginPath();
-  ctx.arc(X(outHole.x), Y(outHole.y), outHole.r * k, Math.PI, 0);
-  ctx.fill();
-  // windmills
-  for (const m of windmills) {
+  ctx.fillText('LUCKY HIT', w / 2, Y(LUCKY.dropY - 0.035));
+
+  // slots: tinted backs and labels underneath
+  for (const s of board.slots) {
+    const st = THEME_STYLE[s.theme];
+    ctx.fillStyle = st.color;
+    ctx.globalAlpha = s.jackpot ? 0.95 : 0.6;
+    ctx.fillRect(X(s.x0), Y(slots.y1), X(s.x1) - X(s.x0), Y(slots.y0) - Y(slots.y1));
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = s.jackpot ? '#5a1010' : '#fff';
+    ctx.font = `${s.jackpot ? 26 : 15}px ${s.jackpot ? FONT.bungee : FONT.bebas}`;
     ctx.save();
-    ctx.translate(X(m.x), Y(m.y));
-    for (let i = 0; i < 4; i++) {
-      ctx.rotate(Math.PI / 2);
-      ctx.fillStyle = i % 2 ? '#29b6f6' : '#ffffff';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(m.r * k, -6);
-      ctx.lineTo(m.r * k, 6);
-      ctx.fill();
-    }
+    ctx.translate((X(s.x0) + X(s.x1)) / 2, (Y(slots.y1) + Y(slots.y0)) / 2);
+    if (!s.jackpot) ctx.rotate(-Math.PI / 2);
+    ctx.fillText(st.label, 0, 1, Y(slots.y0) - Y(slots.y1) - 8);
     ctx.restore();
   }
-  // pin shadows (the brass pins themselves are real geometry)
-  ctx.fillStyle = 'rgba(0,0,0,.45)';
-  for (const [x, y] of pins) {
+  ctx.fillStyle = '#f4ecd8';
+  ctx.font = `20px ${FONT.marker}`;
+  ctx.fillText('every ball wins!', w / 2, Y(slots.y0 - 0.025));
+
+  // nail shadows (the nails themselves are real geometry)
+  ctx.fillStyle = 'rgba(30,15,5,.45)';
+  for (const [x, y] of board.pins) {
     ctx.beginPath();
-    ctx.arc(X(x) + 1.5, Y(y) + 1.5, 2.2, 0, Math.PI * 2);
+    ctx.arc(X(x) + 2.5, Y(y) + 3, 2.6, 0, Math.PI * 2);
     ctx.fill();
   }
   return c;
 }
 
-function bulbStrip() {
-  const c = makeCanvas(16, 128);
+/** The hand-lettered card propped on the table (like the "prize guaranteed" cards in Shenmue). */
+function luckyCard() {
+  const c = makeCanvas(300, 380);
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#16081f';
-  ctx.fillRect(0, 0, 16, 128);
-  const cols = ['#ffe14d', '#ff2e88', '#2ee6ff', '#ffe14d'];
-  for (let i = 0; i < 8; i++) {
-    ctx.fillStyle = cols[i % cols.length];
-    ctx.globalAlpha = i % 2 ? 0.35 : 1;
-    ctx.beginPath();
-    ctx.arc(8, 8 + i * 16, 5.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#f7f1e1';
+  ctx.fillRect(0, 0, 300, 380);
+  ctx.strokeStyle = '#2e7d32';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(10, 10, 280, 360);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#2e7d32';
+  ctx.font = `64px ${FONT.marker}`;
+  ctx.fillText('LUCKY', 150, 80);
+  ctx.fillText('HIT!', 150, 150);
+  ctx.fillStyle = '#c62828';
+  ctx.font = `34px ${FONT.marker}`;
+  ctx.fillText('every ball', 150, 225);
+  ctx.fillText('wins a prize', 150, 265);
+  ctx.fillStyle = '#111';
+  ctx.font = `46px ${FONT.marker}`;
+  ctx.fillText('FREE', 150, 330);
+  return c;
+}
+
+/** Today's board number and pattern, chalked up. */
+function chalkboard(board) {
+  const c = makeCanvas(352, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#6b4128';
+  ctx.fillRect(0, 0, 352, 256);
+  ctx.fillStyle = '#1f2a24';
+  ctx.fillRect(14, 14, 324, 228);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(240,240,230,.92)';
+  ctx.font = `30px ${FONT.marker}`;
+  ctx.fillText("TODAY'S BOARD", 176, 56);
+  ctx.font = `58px ${FONT.marker}`;
+  ctx.fillStyle = '#ffe9a8';
+  ctx.fillText(`#${board.number}`, 176, 118);
+  ctx.font = `30px ${FONT.marker}`;
+  ctx.fillStyle = 'rgba(240,240,230,.92)';
+  ctx.fillText(board.pattern, 176, 172);
+  ctx.font = `18px ${FONT.marker}`;
+  ctx.fillText('new nails every day', 176, 214);
   return c;
 }

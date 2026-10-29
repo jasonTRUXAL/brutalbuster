@@ -119,10 +119,10 @@ async function main() {
       if (hovered < 0) ui.hover(null);
       return;
     }
-    const verb = game.kind === 'gacha' ? 'crouch down and play' : 'sit down and play';
+    const verb = game.kind === 'gacha' ? 'crouch down and play' : 'step up and play';
     ui.hover({
       aisle: 'Prize corner',
-      title: game.kind === 'gacha' ? `${game.title} capsule machine` : `${game.title} pachinko`,
+      title: game.kind === 'gacha' ? `${game.title} capsule machine` : `${game.title} drop board`,
       hint: `${isTouch ? 'Tap' : 'Click'} to ${verb}`,
     });
   }
@@ -249,7 +249,10 @@ async function main() {
   }
 
   const mouse = new THREE.Vector2();
-  canvas.addEventListener('mousemove', (e) => mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1));
+  canvas.addEventListener('mousemove', (e) => {
+    mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    if (mode === 'play' && arcade.seated) arcade.active.pointer?.(mouse, camera); // e.g. aiming the Lucky Hit drop
+  });
   canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     if (mode === 'play' && arcade.seated) arcade.active.primary(true);
@@ -282,9 +285,9 @@ async function main() {
       if (e.code === 'Space' || e.code === 'Enter') {
         e.preventDefault(); // don't also "click" whichever panel button has focus
         if (!e.repeat) game.primary(true);
-      } else if (game.kind === 'pachinko' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+      } else if (game.steer && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
         e.preventDefault();
-        game.setPower(game.power + (e.code === 'ArrowRight' ? 0.05 : -0.05));
+        game.steer(e.code === 'ArrowRight' ? 1 : -1);
       }
       return;
     }
@@ -305,6 +308,7 @@ async function main() {
       e.preventDefault();
       arcade.active?.primary(false);
     }
+    if (mode === 'play' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) arcade.active?.steer?.(0);
   });
 
   window.addEventListener('resize', () => {

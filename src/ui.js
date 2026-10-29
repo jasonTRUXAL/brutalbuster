@@ -106,7 +106,7 @@ export class UI {
 
   /** The control panel for the machine being played. */
   showPlay(game, { isTouch }) {
-    $('.pp-kind', this.play).textContent = game.kind === 'gacha' ? 'Capsule machine' : 'Pachinko';
+    $('.pp-kind', this.play).textContent = game.kind === 'gacha' ? 'Capsule machine' : 'Street game';
     $('.pp-title', this.play).textContent = game.title;
     $('.pp-sub', this.play).textContent = game.subtitle;
     $('[data-act="stand"] kbd', this.play).hidden = isTouch;

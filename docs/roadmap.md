@@ -14,7 +14,7 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 ## Prize corner (built)
 
 - **Gacha machines (4):** playable. Crank, capsule drop, open, and a pile that empties and refills.
-- **Pachinko:** playable, with real ball physics, START/tulip pockets, reels, and FEVER payout.
+- **Lucky Hit:** playable. It's the Shenmue street drop board: aim, drop one slow ball, and every slot wins. The nails change daily (board of the day, checked by simulation). The narrow gold jackpot slot (about 4% of drops) is reserved for rare prizes. It replaced the classic pachinko machine on 2026-10-28.
 - **Next: the reward system.** The rule is "you always win something; it's just what you win". Every capsule and jackpot fires a `bb:prize` event carrying `{ kind, machine, … }`. Ideas so far: each gacha machine's theme maps to a part of the store (Tape Pals → Mystery Tapes, Snack Pals → brutalfoods, Game Pals → the game reviews, TV Pals → Televoid!), and a capsule could contain a tape from that section.
 
 ## Area notes

@@ -115,13 +115,13 @@ test('the prize corner is in, and nothing blocks the way in', async ({ store: pa
     for (let z = plan.D / 2 - 0.5; z > plan.zFront + 0.5; z -= 0.1) path.push([plan.door.x, z]);
     return {
       gachas: store.prizes.gachas.length,
-      pachinko: Boolean(store.prizes.pachinko?.machine),
+      luckyHit: Boolean(store.prizes.luckyHit?.stall),
       spawnClear: !blocked(plan.spawn.x, plan.spawn.z),
       pathBlockedAt: path.find(([x, z]) => blocked(x, z)) || null,
     };
   });
   expect(r.gachas).toBeGreaterThan(0);
-  expect(r.pachinko).toBe(true);
+  expect(r.luckyHit).toBe(true);
   expect(r.spawnClear).toBe(true);
   expect(r.pathBlockedAt, 'walkway from the door into the store').toBeNull();
 });
@@ -244,7 +244,7 @@ const faceMachine = (page, kind, back = 1.3) =>
       const bb = window.__bb;
       const game = bb.arcade.games.find((g) => g.kind === k);
       const V = bb.camera.position.constructor;
-      const m = game.refs.machine;
+      const m = game.refs.machine || game.refs.stall;
       const at = m.localToWorld(new V(0, 0, d));
       const c = m.localToWorld(new V(0, 0, 0));
       bb.setMode('walk');
@@ -289,52 +289,54 @@ test('gacha: crouch down, turn the crank, get a capsule, stand up', async ({ sto
   expect(stood.eye).toBeGreaterThan(1.5);
 });
 
-test('pachinko: sit down, shoot, the board plays out, FEVER pays', async ({ store: page }, testInfo) => {
-  test.skip(isPhone(testInfo), 'touch version below');
-  await faceMachine(page, 'pachinko', 1.6);
-  await page.evaluate(() => window.__bb.enterPlay(window.__bb.hoveredGame));
+test('Lucky Hit: step up, aim, drop, the ball drifts down and wins a prize', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'touch play is covered by the gacha phone test (same panel)');
+  await faceMachine(page, 'luckyhit', 1.7);
+  await expect(page.locator('#tooltip')).toContainText('step up and play');
+  await page.keyboard.press('e');
   await advance(page, 0.9);
-  expect(await page.evaluate(() => window.__bb.arcade.active?.kind)).toBe('pachinko');
-  const start = await page.evaluate(() => window.__bb.arcade.active.balls);
-
-  await page.keyboard.down('Space');
-  await advance(page, 3);
-  await page.keyboard.up('Space');
-  const shooting = await page.evaluate(() => {
+  const info = await page.evaluate(() => {
     const g = window.__bb.arcade.active;
-    return { shot: g.stats.shot, firing: g.firing, inFlight: g.inFlight };
+    return { kind: g?.kind, number: g.board.number, pattern: g.board.pattern, aim: g.aim };
   });
-  expect(shooting.shot).toBeGreaterThanOrEqual(10); // 5 a second
-  expect(shooting.firing).toBe(false);
-  expect(shooting.inFlight).toBeGreaterThan(0);
-  await advance(page, 10);
-  const settled = await page.evaluate(() => ({ inFlight: window.__bb.arcade.active.inFlight, balls: window.__bb.arcade.active.balls }));
-  expect(settled.inFlight).toBe(0); // every ball finished somewhere
-  expect(settled.balls).toBeLessThanOrEqual(start + 200); // sanity: payouts are bounded
+  expect(info.kind).toBe('luckyhit');
+  await expect(page.locator('#play .pp-sub')).toContainText(`#${info.number}`);
+  await expect(page.locator('#play .pp-sub')).toContainText(info.pattern);
 
-  // force a jackpot spin and check FEVER pays out and announces the prize. Natural START
-  // hits may have left spins running or queued, so let the reels finish first.
-  const fever = await page.evaluate(() => {
+  // steer the drop cup with the arrow keys
+  await page.keyboard.down('ArrowRight');
+  await advance(page, 0.5);
+  await page.keyboard.up('ArrowRight');
+  const aimed = await page.evaluate(() => window.__bb.arcade.active.aim);
+  expect(aimed).toBeGreaterThan(info.aim + 0.08);
+
+  // drop: one slow ball, and it lands in a slot and announces the prize
+  // (tests share one page, so use a listener of our own: earlier tests left theirs attached)
+  await page.evaluate(() => {
+    window.__luckyPrizes = [];
+    window.addEventListener('bb:prize', (e) => e.detail.kind === 'lucky-hit' && window.__luckyPrizes.push(e.detail));
+  });
+  await page.keyboard.press('Space');
+  const landed = await page.evaluate(() => {
     const g = window.__bb.arcade.active;
-    for (let i = 0; i < 120 && (g.reels.state !== 'idle' || g.reels.queue > 0 || g.fever.t > 0 || g.fever.owed > 0); i++) window.__bb.advance(0.25);
-    const prizes = [];
-    window.addEventListener('bb:prize', (e) => prizes.push(e.detail));
-    const jackpotsBefore = g.stats.jackpots;
-    const before = g.balls;
-    g.rand = () => 0.01; // every spin a jackpot from here on
-    g.queueSpin();
-    let feverOn = false;
-    for (let i = 0; i < 40 && !feverOn; i++) {
+    let t = 0;
+    while (g.state === 'falling' && t < 12) {
       window.__bb.advance(0.25);
-      feverOn = g.fever.t > 0;
+      t += 0.25;
     }
-    window.__bb.advance(3); // let the payout drip in
-    return { feverOn, gained: g.balls - before, prizes, jackpots: g.stats.jackpots - jackpotsBefore };
+    return { state: g.state, t, result: g.result, prizes: window.__luckyPrizes, slots: g.board.slots.length };
   });
-  expect(fever.feverOn).toBe(true);
-  expect(fever.jackpots).toBe(1);
-  expect(fever.gained).toBeGreaterThanOrEqual(50);
-  expect(fever.prizes.map((p) => p.kind)).toContain('jackpot');
+  expect(landed.state).toBe('landed');
+  expect(landed.t).toBeGreaterThan(1.5); // it's meant to be slow
+  expect(landed.result.slot).toBeGreaterThanOrEqual(0);
+  expect(landed.result.slot).toBeLessThan(landed.slots);
+  expect(landed.prizes).toHaveLength(1);
+  expect(landed.prizes[0]).toMatchObject({ kind: 'lucky-hit', board: info.number });
+  await expect(page.locator('#play .pp-msg')).toContainText('!');
+
+  // a fresh ball is back in the cup a moment later
+  await advance(page, 2.2);
+  expect(await page.evaluate(() => window.__bb.arcade.active.state)).toBe('aim');
 
   await page.locator('#play [data-act="stand"]').click();
   await advance(page, 1);

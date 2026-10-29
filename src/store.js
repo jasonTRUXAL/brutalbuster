@@ -580,7 +580,7 @@ function buildPosters(root, plan, catalog, trackArt) {
   const y = 2.88;
   for (let z = -D / 2 + 1.5; z < D / 2 - 1.2; z += 2.2) poster(-W / 2 + 0.01, y, z, Math.PI / 2);
   for (let z = -D / 2 + 1.5; z < zFront - 0.3; z += 2.2) poster(W / 2 - 0.01, y, z, -Math.PI / 2);
-  // window poster beside the door, facing in (the left-hand window is behind the pachinko)
+  // window poster beside the door, facing in (the left-hand window is behind the Lucky Hit stall)
   const big = 1.2;
   poster(door.x - door.width / 2 - 1.0, 1.55, D / 2 - 0.03, Math.PI, big * (160 / 280), big);
 }

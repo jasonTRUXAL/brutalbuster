@@ -1,9 +1,9 @@
 // Walking up to a machine and playing it: hit-testing the machines, easing the camera
-// down into a crouch (gacha) or onto the stool (pachinko) and back up, and handing input
+// down into a crouch (gacha) or up to the table (Lucky Hit) and back, and handing input
 // to whichever game is being played.
 import * as THREE from 'three';
 import { GachaGame } from './gacha.js';
-import { PachinkoGame } from './pachinko.js';
+import { LuckyHitGame } from './luckyhit.js';
 import { easeInOut } from './util.js';
 
 const SIT_TIME = 0.75;
@@ -15,7 +15,7 @@ export class Arcade {
   constructor(prizes, { onPrize, onChange } = {}) {
     const hooks = { onPrize: (p) => onPrize?.(p), onChange: (g) => onChange?.(g) };
     this.games = [...prizes.gachas.map((g) => new GachaGame(g, hooks))];
-    if (prizes.pachinko) this.games.push(new PachinkoGame(prizes.pachinko, hooks));
+    if (prizes.luckyHit) this.games.push(new LuckyHitGame(prizes.luckyHit, hooks));
     this.boxes = this.games.map((g) => g.hitBox());
     this.active = null;
     this.tween = null; // { from, to, t, onDone }

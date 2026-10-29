@@ -66,17 +66,18 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Find a title | `F` | **Find a tape** |
 | Play a prize-corner machine | aim at it and click (or `E`) | tap it |
 | Turn the gacha crank | `Space`, or **Turn the crank** | **Turn the crank** |
-| Shoot pachinko balls | hold `Space` or the mouse; `←` `→` set launch power | hold **Hold to shoot**; drag the power slider |
+| Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
 | Stand back up | `Esc`, or **Stand up** | **Stand up** |
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
 
 ### The prize corner
 
-The prize corner is by the entrance: four capsule-toy (gacha) machines along the front window and a pachinko machine in the corner. Click one and the camera crouches down to the gacha, or sits you on the pachinko stool.
+The prize corner is by the entrance: four capsule-toy (gacha) machines along the front window, and a Lucky Hit stall (the street drop board from Shenmue) in the corner. Click one and the camera crouches down to the gacha, or steps you up to the stall's table.
 
 - **Gacha:** the crank turns, a capsule drops out, floats up and pops open. Each machine's pile shrinks as you play and refills when empty.
-- **Pachinko:** real ball physics. Power decides where balls enter the board: weak shots drop in on the left, strong ones carry over to the right, and too strong goes straight down the right side. START (fed by the slanted "ways" under the screen) spins the reels, the tulips pay a few balls, and three of a kind is FEVER (+50 balls). It's free play, so an empty tray refills.
+- **Lucky Hit:** pick a spot along the top, let go, and one ball drifts slowly down through the nails (about 4 seconds) into a prize slot. Every slot wins something themed like the gacha machines. One narrow gold slot is the jackpot (about 4% of drops), saved for rarer prizes.
+- **Board of the day:** the nail pattern (Classic, Diamonds, Chevrons, Spiral, Zigzag, Moose, Scatter), the slot order and the jackpot's position change every day (UTC), the same for everyone. A chalkboard on the table shows today's board number. Before a board is used, the game plays it by simulation and rejects it if any ball could get stuck, any slot couldn't be won, or the jackpot is too easy. A fixed, tested Classic board stands in if no variant passes. The unit tests check a full year of boards ahead of time.
 
 Every capsule and jackpot fires a `bb:prize` browser event. The always-win reward system (what's actually inside) will plug in there.
 
@@ -104,11 +105,11 @@ src/
   inspect.js     the picked-up tape (fly-in animation, spin, flip)
   controls.js    first-person movement, collision, touch joystick
   crt.js         the TV above the counter
-  prizes.js      prize-corner props: gacha machines and the pachinko cabinet
+  prizes.js      prize-corner props: gacha machines and the Lucky Hit stall
   arcade.js      hit-testing machines, crouch/sit camera, routing input to a game
   gacha.js       gacha play: crank, capsule drop and open
-  pachinko.js    pachinko play: firing, reels, FEVER, ball tray
-  pachinko-physics.js  board layout + 2D ball physics (pure, unit tested)
+  luckyhit.js    Lucky Hit play: aiming, the drop, landing and the prize
+  luckyhit-physics.js  board of the day + 2D ball physics + the daily check (pure, unit tested)
   ui.js          splash, HUD, details panel, player, directory
 scripts/
   sync-youtube.mjs   builds public/catalog.json from the channel (network + files)

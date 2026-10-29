@@ -378,12 +378,10 @@ body.drag-look #crosshair { display: none; }
 .pp-dot { display: inline-block; width: 14px; height: 14px; margin-right: 8px; border-radius: 50%; vertical-align: -2px; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7); }
 .pp-soon { display: block; margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
 .pp-meta { margin: 10px 0 0; font: 1.05rem/1 var(--mono); color: var(--muted); }
-.pp-row { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
 .pp-label { display: block; font: 400 0.85rem/1 var(--display); letter-spacing: 0.16em; color: var(--muted); text-align: left; }
-.pp-balls { min-width: 96px; text-align: left; }
-.pp-count { font: 2.4rem/1 var(--mono); color: #b9ffcc; text-shadow: 0 0 8px rgba(57, 255, 106, 0.5); }
-.pp-power { flex: 1; }
-.pp-power input { width: 100%; margin-top: 8px; accent-color: var(--magenta); }
+.pp-hint { margin: 0 0 10px; font-size: 0.95rem; color: var(--muted); }
+.pp-aim { display: block; margin-bottom: 12px; }
+.pp-aim input { width: 100%; margin-top: 8px; accent-color: var(--magenta); }
 .pp-msg { margin: 12px 0 0; font: 400 1.3rem/1 var(--display); letter-spacing: 0.08em; color: var(--text); min-height: 1.3rem; }
 .pp-msg.hot { color: var(--yellow); text-shadow: 0 0 10px rgba(255, 198, 26, 0.6); }
 .pp-stand { margin-top: 12px; }
