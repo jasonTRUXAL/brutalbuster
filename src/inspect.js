@@ -40,7 +40,10 @@ export class Inspector {
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
       fragmentShader:
         'uniform float uAlpha; varying vec2 vUv; void main(){ float v = smoothstep(1.1, 0.2, length(vUv - vec2(0.35, 0.5))); gl_FragColor = vec4(vec3(0.02,0.01,0.05), uAlpha * mix(0.92, 0.7, v)); }',
-      transparent: true,
+      // Blended, but kept in three's opaque list: transparent objects draw after opaque
+      // ones whatever their renderOrder, which put the dimmer over the tape.
+      blending: THREE.CustomBlending,
+      transparent: false,
       depthTest: false,
       depthWrite: false,
     });
