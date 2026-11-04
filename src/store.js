@@ -15,14 +15,35 @@ import { buildPrizeCorner } from './prizes.js';
 
 // ------------------------------------------------------------- geometry batching
 
+// PS1 Mode maps textures without perspective correction, which warps big polygons
+// badly (real PS1 games split them up for the same reason). Textured surfaces are
+// built from tiles about this size; it changes nothing in the normal look.
+const TILE = 0.75;
+const tiles = (size, tile = TILE) => Math.max(1, Math.ceil(size / tile - 1e-6));
+
+/** A plane split into roughly `tile`-sized squares. */
+function tiledPlane(w, h, tile = TILE) {
+  return new THREE.PlaneGeometry(w, h, tiles(w, tile), tiles(h, tile));
+}
+
 /** Rescale a BoxGeometry's UVs so textures tile at `scale` repeats per metre. */
 function scaleBoxUV(g, sx, sy, sz, scale) {
   const uv = g.attributes.uv;
+  const { widthSegments: ws, heightSegments: hs, depthSegments: ds } = g.parameters;
+  // faces are stored in order +x, -x, +y, -y, +z, -z, each a (segments + 1)² vertex grid
   const dims = [[sz, sy], [sz, sy], [sx, sz], [sx, sz], [sx, sy], [sx, sy]];
-  for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) {
-    const i = f * 4 + k;
+  const counts = [(ds + 1) * (hs + 1), (ds + 1) * (hs + 1), (ws + 1) * (ds + 1), (ws + 1) * (ds + 1), (ws + 1) * (hs + 1), (ws + 1) * (hs + 1)];
+  let i = 0;
+  for (let f = 0; f < 6; f++) for (let k = 0; k < counts[f]; k++, i++) {
     uv.setXY(i, uv.getX(i) * dims[f][0] * scale, uv.getY(i) * dims[f][1] * scale);
   }
+}
+
+/** A box with per-metre UVs; textured ones are split into tiles (see TILE). */
+function boxGeo(mat, sx, sy, sz, uvScale) {
+  const g = mat.map ? new THREE.BoxGeometry(sx, sy, sz, tiles(sx), tiles(sy), tiles(sz)) : new THREE.BoxGeometry(sx, sy, sz);
+  scaleBoxUV(g, sx, sy, sz, uvScale);
+  return g;
 }
 
 class Batcher {
@@ -34,15 +55,13 @@ class Batcher {
     this.lists.get(mat).push(geo);
   }
   box(mat, x, y, z, sx, sy, sz, uvScale = 1) {
-    const g = new THREE.BoxGeometry(sx, sy, sz);
-    scaleBoxUV(g, sx, sy, sz, uvScale);
+    const g = boxGeo(mat, sx, sy, sz, uvScale);
     g.translate(x, y, z);
     this.add(mat, g);
   }
   /** Box positioned in a prop's local space, then moved into the world by matrix `m`. */
   boxAt(mat, m, x, y, z, sx, sy, sz, uvScale = 1) {
-    const g = new THREE.BoxGeometry(sx, sy, sz);
-    scaleBoxUV(g, sx, sy, sz, uvScale);
+    const g = boxGeo(mat, sx, sy, sz, uvScale);
     g.translate(x, y, z);
     g.applyMatrix4(m);
     this.add(mat, g);
@@ -80,7 +99,8 @@ function signPlane(tex, w, h, x, y, z, rotY, { additive = false, doubleSided = f
     side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
     toneMapped: false,
   });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  mat.userData.decal = true; // a few mm in front of its backing board (see ps1.js)
+  const m = new THREE.Mesh(tiledPlane(w, h, 0.5), mat);
   m.position.set(x, y, z);
   m.rotation.y = rotY;
   return m;
@@ -121,14 +141,14 @@ export function buildStore(scene, plan, catalog) {
   const carpet = carpetTexture();
   carpet.wrapS = carpet.wrapT = THREE.RepeatWrapping;
   carpet.repeat.set(W / 2, (D - vctDepth) / 2);
-  const floorC = new THREE.Mesh(new THREE.PlaneGeometry(W, D - vctDepth), new THREE.MeshStandardMaterial({ map: carpet, roughness: 0.95 }));
+  const floorC = new THREE.Mesh(tiledPlane(W, D - vctDepth), new THREE.MeshStandardMaterial({ map: carpet, roughness: 0.95 }));
   floorC.rotation.x = -Math.PI / 2;
   floorC.position.set(0, 0, -vctDepth / 2);
   root.add(floorC);
   const vct = vctTexture();
   vct.wrapS = vct.wrapT = THREE.RepeatWrapping;
   vct.repeat.set(W / 0.6, vctDepth / 0.6);
-  const floorV = new THREE.Mesh(new THREE.PlaneGeometry(W, vctDepth), new THREE.MeshStandardMaterial({ map: vct, roughness: 0.4, metalness: 0.05 }));
+  const floorV = new THREE.Mesh(tiledPlane(W, vctDepth), new THREE.MeshStandardMaterial({ map: vct, roughness: 0.4, metalness: 0.05 }));
   floorV.rotation.x = -Math.PI / 2;
   floorV.position.set(0, 0, D / 2 - vctDepth / 2);
   root.add(floorV);
@@ -138,7 +158,7 @@ export function buildStore(scene, plan, catalog) {
   const ceil = ceilingTexture();
   ceil.wrapS = ceil.wrapT = THREE.RepeatWrapping;
   ceil.repeat.set(W / 0.6, D / 0.6);
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: ceil, roughness: 0.95 }));
+  const ceiling = new THREE.Mesh(tiledPlane(W, D), new THREE.MeshStandardMaterial({ map: ceil, roughness: 0.95 }));
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = DIM.CEILING;
   root.add(ceiling);
@@ -160,7 +180,7 @@ export function buildStore(scene, plan, catalog) {
   // ---- walls
   const wallH = DIM.CEILING;
   const wallPlane = (w, x, z, rotY) => {
-    const g = new THREE.PlaneGeometry(w, wallH);
+    const g = tiledPlane(w, wallH);
     const uv = g.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * w);
     const m = new THREE.Mesh(g, mat.wall);
@@ -372,7 +392,8 @@ function buildFrontWall(root, B, mat, plan) {
   }
   // doormat
   const matTex = toTexture(doormatCanvas());
-  const mt = new THREE.Mesh(new THREE.PlaneGeometry(door.width - 0.1, 1.2), new THREE.MeshStandardMaterial({ map: matTex, roughness: 1 }));
+  const mt = new THREE.Mesh(tiledPlane(door.width - 0.1, 1.2), new THREE.MeshStandardMaterial({ map: matTex, roughness: 1 }));
+  mt.material.userData.decal = true;
   mt.rotation.x = -Math.PI / 2;
   mt.position.set(door.x, 0.004, z - 0.7);
   root.add(mt);
@@ -381,7 +402,7 @@ function buildFrontWall(root, B, mat, plan) {
   const asphalt = asphaltTexture();
   asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping;
   asphalt.repeat.set(40, 12);
-  const lot = new THREE.Mesh(new THREE.PlaneGeometry(120, 34), new THREE.MeshStandardMaterial({ map: asphalt, roughness: 1, color: 0x8888aa }));
+  const lot = new THREE.Mesh(tiledPlane(120, 34, 3), new THREE.MeshStandardMaterial({ map: asphalt, roughness: 1, color: 0x8888aa }));
   lot.rotation.x = -Math.PI / 2;
   lot.position.set(0, -0.01, z + 17.2);
   root.add(lot);
@@ -390,7 +411,7 @@ function buildFrontWall(root, B, mat, plan) {
   curb.position.set(0, 0.0, z + 1.2);
   root.add(curb);
   for (let i = -8; i <= 8; i++) B.box(mat.counterTop, i * 2.8, 0.002, z + 6.5, 0.1, 0.004, 4.5);
-  const sky = new THREE.Mesh(new THREE.PlaneGeometry(140, 46), new THREE.MeshBasicMaterial({ map: nightSkyTexture(), fog: false }));
+  const sky = new THREE.Mesh(tiledPlane(140, 46, 6), new THREE.MeshBasicMaterial({ map: nightSkyTexture(), fog: false }));
   sky.position.set(0, 14, z + 34);
   sky.rotation.y = Math.PI;
   root.add(sky);
@@ -480,6 +501,7 @@ function buildCounter(root, B, mat, plan, catalog, animated) {
   B.box(mat.dark, tvX + 0.2, 2.5, tvZ, 0.5, 0.48, 0.62);
   B.box(mat.chrome, tvX + 0.2, (2.74 + DIM.CEILING) / 2, tvZ, 0.04, DIM.CEILING - 2.74, 0.04);
   const tv = signPlane(crt.texture, 0.5, 0.375, tvX - 0.052, 2.5, tvZ, -Math.PI / 2);
+  tv.material.userData.thumbnail = true; // it plays thumbnails: sharp in PS1 Mode
   root.add(tv);
 
   // neon store logo on the wall behind the counter
@@ -532,6 +554,7 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
     const stand = new THREE.Group();
     const face = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.49), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7 }));
     trackArt(pick.id, face.material, 384);
+    face.material.userData.thumbnail = true; // sharp in PS1 Mode
     face.position.y = 0.2 + 0.745;
     stand.add(face);
     const backing = new THREE.Mesh(new THREE.BoxGeometry(0.87, 1.51, 0.01), new THREE.MeshStandardMaterial({ color: 0x8a7a5e, roughness: 1 }));
@@ -567,6 +590,7 @@ function buildPosters(root, plan, catalog, trackArt) {
     const tex = toTexture(coverCanvas(d, 256));
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
     trackArt(v.id, m.material, 256);
+    m.material.userData.thumbnail = true; // sharp in PS1 Mode
     m.position.set(x, y, z);
     m.rotation.y = rotY;
     m.userData.videoId = v.id;

@@ -68,8 +68,13 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Turn the gacha crank | `Space`, or **Turn the crank** | **Turn the crank** |
 | Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
 | Stand back up | `Esc`, or **Stand up** | **Stand up** |
+| PS1 Mode on / off | `P`, or **PS1 mode** | **PS1** |
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
+
+### PS1 Mode
+
+**PS1 mode** (top right, or `P`) draws the store like a 1995 PlayStation game: a 240-line picture with chunky pixels, wobbly polygons, warping and point-sampled textures, the console's 15-bit dithered colour, and distance fog. The video thumbnails are left alone: box covers, posters, the standee, the counter TV and the tape in your hands are drawn again at full resolution on top, so you can still tell every tape apart. The choice is remembered on that browser. `?ps1` and `?ps1=0` in the address turn it on or off for one visit.
 
 ### The prize corner
 
@@ -103,6 +108,7 @@ src/
   covers.js      box art generator (front, back, spine) + thumbnail loading
   textures.js    carpet, ceiling tiles, signs, neon
   inspect.js     the picked-up tape (fly-in animation, spin, flip)
+  ps1.js         PS1 Mode: low-res render, shader patches, sharp thumbnail pass
   controls.js    first-person movement, collision, touch joystick
   crt.js         the TV above the counter
   prizes.js      prize-corner props: gacha machines and the Lucky Hit stall
@@ -116,7 +122,7 @@ scripts/
   lib/               parsing and shelving rules (pure, unit tested)
   check-catalog.mjs  validates a catalog file
 test/
-  unit/          node --test: catalog contract, YouTube parsing, layout invariants
+  unit/          node --test: catalog contract, YouTube parsing, layout invariants, PS1 shader patches
   smoke/         Playwright: loads the real store and walks the core flows
 ```
 

@@ -32,6 +32,7 @@ function plane(map, w, h, { basic = false, additive = false, transparent = false
   const material = basic
     ? new THREE.MeshBasicMaterial({ map, toneMapped: false, transparent: additive || transparent, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: !additive })
     : new THREE.MeshStandardMaterial({ map, roughness: 0.45, transparent });
+  material.userData.decal = true; // laid just in front of the machine (see ps1.js)
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
 }
 

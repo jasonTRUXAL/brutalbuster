@@ -58,6 +58,7 @@ const test = base.extend({
       if (bb.mode === 'watch') document.querySelector('[data-act="eject"]').click();
       if (bb.mode === 'inspect') bb.putBack(false);
       if (bb.mode === 'play') bb.exitPlay(false);
+      if (bb.ps1.enabled) bb.setPS1(false, false);
       bb.advance(1); // let any put-back / stand-up animation finish
       if (bb.mode !== 'splash') bb.setMode('walk');
     });
@@ -141,6 +142,51 @@ test('the 3D store actually renders', async ({ store: page }) => {
     return seen.size;
   });
   expect(colours, 'distinct colours sampled across the frame').toBeGreaterThan(8);
+});
+
+test('PS1 mode: a blocky world, a held tape, and back to normal', async ({ store: page }, testInfo) => {
+  /** Share of neighbouring pixels that match along a strip of carpet: high once the picture is 240 lines. */
+  const blockiness = () =>
+    page.evaluate(() => {
+      const bb = window.__bb;
+      bb.advance(0.05);
+      const gl = bb.renderer.getContext();
+      const n = 200;
+      const px = new Uint8Array(n * 4);
+      gl.readPixels(Math.floor(gl.drawingBufferWidth / 2 - n / 2), Math.floor(gl.drawingBufferHeight * 0.06), n, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      let same = 0;
+      for (let i = 1; i < n; i++) if (px[i * 4] === px[i * 4 - 4] && px[i * 4 + 1] === px[i * 4 - 3] && px[i * 4 + 2] === px[i * 4 - 2]) same++;
+      return { same: same / (n - 1), glError: gl.getError() };
+    });
+  const toggle = () => (isPhone(testInfo) ? page.locator('#btn-ps1').tap() : page.keyboard.press('p'));
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    bb.setMode('walk');
+    bb.controls.teleport(bb.plan.spawn.x, bb.plan.spawn.z - 3, 0, -0.35); // down an aisle, looking at the carpet
+  });
+  const normal = await blockiness();
+
+  await toggle();
+  await expect(page.locator('#btn-ps1')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => [window.__bb.ps1.enabled, localStorage.getItem('bb.ps1')])).toEqual([true, '1']);
+  const ps1 = await blockiness();
+  expect(ps1.glError, 'WebGL error in PS1 mode').toBe(0);
+  expect(ps1.same, `matching neighbours: normal ${normal.same.toFixed(2)}, PS1 ${ps1.same.toFixed(2)}`).toBeGreaterThan(Math.max(0.5, normal.same + 0.3));
+
+  // the held tape goes through its own PS1 passes
+  const slot = await genreSlot(page, 2);
+  await page.evaluate((i) => window.__bb.pickUp(i), slot);
+  await advance(page, 0.8);
+  expect(await page.evaluate(() => [window.__bb.inspector.state, window.__bb.renderer.getContext().getError()])).toEqual(['held', 0]);
+  await page.evaluate(() => window.__bb.putBack(false));
+  await advance(page, 0.6);
+  await page.evaluate(() => window.__bb.setMode('walk'));
+
+  await toggle();
+  await expect(page.locator('#btn-ps1')).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => [window.__bb.ps1.enabled, localStorage.getItem('bb.ps1')])).toEqual([false, '0']);
+  const back = await blockiness();
+  expect(back.same).toBeLessThan(ps1.same - 0.2);
 });
 
 test('pick up a tape, flip it, put it back', async ({ store: page }, testInfo) => {

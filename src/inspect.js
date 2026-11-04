@@ -51,6 +51,7 @@ export class Inspector {
     dim.frustumCulled = false;
     dim.renderOrder = -1;
     this.scene.add(dim);
+    this.dim = dim;
 
     this.mesh = null;
     this.slot = -1;
@@ -80,14 +81,18 @@ export class Inspector {
     const back = texFrom(drawBack, W, H, d);
     const spine = texFrom(drawSpine, spineW, H, d);
     const plastic = texFrom(drawPlastic, 64, 64, d);
-    const sleeve = (map) => new THREE.MeshStandardMaterial({ map, roughness: 0.28, metalness: 0.0 });
+    const sleeve = (map, thumbnail = false) => {
+      const m = new THREE.MeshStandardMaterial({ map, roughness: 0.28, metalness: 0.0 });
+      m.userData.thumbnail = thumbnail; // front and back show the video's thumbnail: sharp in PS1 Mode
+      return m;
+    };
     const mats = [
       sleeve(plastic), // +x opening edge
       sleeve(spine), // -x spine
       sleeve(plastic),
       sleeve(plastic),
-      sleeve(front),
-      sleeve(back),
+      sleeve(front, true),
+      sleeve(back, true),
     ];
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(DIM.CASE_W, DIM.CASE_H, DIM.CASE_D), mats);
     this.scene.add(this.mesh);
@@ -174,8 +179,13 @@ export class Inspector {
     }
   }
 
-  render(renderer) {
+  /** Draw over the store. With PS1 Mode on, `ps1` draws it in the PS1 style. */
+  render(renderer, ps1 = null) {
     if (this.state === 'idle') return;
+    if (ps1) {
+      ps1.renderOverlay(this.scene, this.camera, { backdrop: this.dim, subject: this.mesh });
+      return;
+    }
     renderer.clearDepth();
     renderer.render(this.scene, this.camera);
   }

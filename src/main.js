@@ -9,6 +9,7 @@ import { buildStore } from './store.js';
 import { PlayerControls } from './controls.js';
 import { Inspector } from './inspect.js';
 import { Arcade } from './arcade.js';
+import { PS1Mode } from './ps1.js';
 import { coverData, loadThumb } from './covers.js';
 import { setMaxAnisotropy } from './textures.js';
 import { DIM } from './config.js';
@@ -80,6 +81,29 @@ async function main() {
     onChange: () => ui.refreshPlay(),
   });
   renderer.compile(scene, camera);
+
+  // PS1 Mode: the store drawn like a 1995 console game (thumbnails stay sharp).
+  // Remembered between visits; ?ps1 / ?ps1=0 overrides.
+  const ps1 = new PS1Mode(renderer, scene);
+  const ps1Param = new URLSearchParams(location.search).get('ps1');
+  const ps1Saved = (() => {
+    try {
+      return localStorage.getItem('bb.ps1') === '1';
+    } catch {
+      return false;
+    }
+  })();
+  function setPS1(on, remember = true) {
+    ps1.setEnabled(on);
+    ui.setPS1(on);
+    if (!remember) return;
+    try {
+      localStorage.setItem('bb.ps1', on ? '1' : '0');
+    } catch {
+      // private browsing: just don't remember it
+    }
+  }
+  setPS1(ps1Param !== null ? ps1Param !== '0' : ps1Saved, false);
 
   // ------------------------------------------------------------ state machine
   let mode = 'splash';
@@ -227,6 +251,7 @@ async function main() {
     setMode('inspect');
   });
   ui.on('stand', () => exitPlay(true));
+  ui.on('ps1', () => setPS1(!ps1.enabled));
   ui.buildDirectory(catalog, atlas, (id) => goToVideo(id));
 
   controls.onLockChange = (locked, failed) => {
@@ -277,6 +302,10 @@ async function main() {
       else if (mode === 'inspect') putBack(false);
       else if (mode === 'directory') closeDirectory();
       else if (mode === 'play') exitPlay(false);
+      return;
+    }
+    if (e.code === 'KeyP' && mode !== 'splash' && !e.repeat) {
+      setPS1(!ps1.enabled);
       return;
     }
     if (mode === 'play') {
@@ -407,8 +436,9 @@ async function main() {
 
   function draw() {
     renderer.clear();
-    renderer.render(scene, camera);
-    inspector.render(renderer);
+    if (ps1.enabled) ps1.render(scene, camera);
+    else renderer.render(scene, camera);
+    inspector.render(renderer, ps1.enabled ? ps1 : null);
   }
 
   // Dev-only `?manual`: no render loop; frames happen only via __bb.advance(). The smoke
@@ -427,7 +457,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, goToVideo, pickUp, putBack, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, ps1, setPS1, goToVideo, pickUp, putBack, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
       get hoveredGame() { return hoveredGame; },

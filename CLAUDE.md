@@ -23,6 +23,7 @@ Each area can change independently as long as it keeps its contract with the oth
 |---|---|---|
 | **Content pipeline** | `scripts/`, `store.config.json`, `catalog.overrides.json` | Writes `public/catalog.json` per `docs/catalog-format.md`, validated by `src/catalog-schema.js` |
 | **The store (world)** | `layout.js`, `store.js`, `tapes.js`, `atlas.js`, `covers.js`, `textures.js`, `crt.js`, `config.js`, `prizes.js` (prize-corner props) | Reads the normalized catalog; exposes `plan.slots`, `TapeShelves` and `store.colliders` to `main.js` |
+| **PS1 Mode** | `ps1.js` | Draws any scene in the PS1 style. Relies on two material flags set by the world (see Conventions); `main.js` and `inspect.js` call its render methods |
 | **Interaction and viewing** | `main.js` (state machine), `controls.js`, `inspect.js`, `ui.js`, `style.css`, `index.html` | Modes are `splash`, `walk`, `paused`, `inspect`, `watch`, `directory`, `play`. The next big feature (the viewing experience) lives here |
 | **Prize-corner games** | `arcade.js` (hit-testing, crouch/sit camera), `gacha.js`, `luckyhit.js`, `luckyhit-physics.js`, `arcade-ui.js` | Games get their props from `prizes.js`; every win fires a `bb:prize` window event, which is where the reward system plugs in |
 | **Hosting and ops** | `.github/workflows/`, `vite.config.js`, `package.json` | Static `dist/`; daily restock through `deploy.yml` |
@@ -42,14 +43,16 @@ The picked-up tape is rendered in a separate overlay scene (`inspect.js`) over t
 - **Deterministic.** Any randomness is seeded (`rng(hash(...))` from `util.js`) so the store looks the same on every load and tests are stable.
 - **Canvas art is drawn on a design grid.** Covers are laid out on 160×280 and scaled by `s = width / 160`, so one function draws both the atlas thumbnail and the 512px held tape. Webfonts must be loaded (`loadFonts()`) before any canvas text is drawn.
 - **Textures go through `toTexture()`.** It handles sRGB, anisotropy and mipmaps.
+- **PS1 Mode flags.** A material that shows a video thumbnail sets `material.userData.thumbnail = true`: PS1 Mode leaves its texture alone and redraws it sharp. A flat layer sitting a few mm in front of another surface (signs, cards, the doormat) sets `material.userData.decal = true`, so it doesn't sink into its backing when vertices snap. New textured surfaces bigger than about a metre should be split into tiles (`tiledPlane()`, or `Batcher.box` does it for textured boxes), because PS1 Mode's affine texture mapping warps large polygons. Custom `ShaderMaterial`s are left out of PS1 Mode.
 - **Comments:** a short header per module saying why it exists, plus brief notes on anything non-obvious. Match the surrounding density.
 - **Files are LF** (`.gitattributes`). The dev machine is Windows, so use forward slashes in scripts.
 
 ## Verifying changes in a browser
 
-- **Dev hooks.** In dev builds `window.__bb` exposes `plan`, `catalog`, `camera`, `controls`, `tapes`, `inspector`, `renderer`, `setMode()`, `pickUp(slot)`, `putBack()`, `goToVideo(id)`, `raySlot(ndc)`, `mode` and `hovered`. **`__bb.advance(seconds)`** steps the simulation deterministically and renders once. Use it whenever frames aren't flowing, for example in a hidden or background browser pane where `requestAnimationFrame` is throttled. `?manual` turns off the render loop entirely (the smoke tests use it). CI has no GPU, so rendering is all in software there; reproduce that locally with `PW_SOFTWARE_GL=1 npm run test:smoke`.
+- **Dev hooks.** In dev builds `window.__bb` exposes `plan`, `catalog`, `camera`, `controls`, `tapes`, `inspector`, `renderer`, `ps1`, `setPS1(on)`, `setMode()`, `pickUp(slot)`, `putBack()`, `goToVideo(id)`, `raySlot(ndc)`, `mode` and `hovered`. **`__bb.advance(seconds)`** steps the simulation deterministically and renders once. Use it whenever frames aren't flowing, for example in a hidden or background browser pane where `requestAnimationFrame` is throttled. `?manual` turns off the render loop entirely (the smoke tests use it). CI has no GPU, so rendering is all in software there; reproduce that locally with `PW_SOFTWARE_GL=1 npm run test:smoke`.
 - **Pointer lock** is usually refused in automated or embedded browsers. The app stays in `paused` mode (mouse free, "Click to look around" hint), and after a second refusal switches to drag-to-look. In tests, call `__bb.setMode('walk')` after clicking Enter.
 - **Previewing another catalog:** `?catalog=_name.json` loads `public/_name.json` (dev only). Files matching `public/_*.json` are git-ignored.
+- **PS1 Mode:** `?ps1` / `?ps1=0` force it on or off for one load. Otherwise the last choice is kept in `localStorage` (`bb.ps1`). The first switch in each direction compiles shaders (about a second).
 - **Previewing a future Lucky Hit board:** `?luckyday=N` shows the board N days from today (dev only).
 - **Thumbnails** come from `i.ytimg.com`, which sends CORS headers. The pixel reads in `covers.js` (black-bar cropping) depend on that.
 

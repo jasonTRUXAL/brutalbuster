@@ -13,6 +13,7 @@ const GLOW = new THREE.Color(1.6, 1.55, 1.4);
 
 function atlasMaterial(map) {
   const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.36, metalness: 0.0 });
+  mat.userData.thumbnail = true; // box art: stays sharp in PS1 Mode
   mat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 aUvRect;')

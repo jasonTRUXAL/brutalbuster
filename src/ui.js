@@ -20,6 +20,10 @@ export class UI {
 
     $('#btn-enter').addEventListener('click', () => this.handlers.enter?.());
     $('#btn-find').addEventListener('click', () => this.handlers.find?.());
+    $('#btn-ps1').addEventListener('click', (e) => {
+      e.currentTarget.blur(); // so Space / Enter don't press it again later
+      this.handlers.ps1?.();
+    });
     this.play.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="stand"]')) this.handlers.stand?.();
     });
@@ -102,6 +106,11 @@ export class UI {
     this.directory.hidden = mode !== 'directory';
     this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory');
     if (mode !== 'walk') this.hover(null);
+  }
+
+  /** Show whether PS1 Mode is on (the HUD toggle). */
+  setPS1(on) {
+    $('#btn-ps1').setAttribute('aria-pressed', String(on));
   }
 
   /** The control panel for the machine being played. */

@@ -15,7 +15,10 @@
     <div id="hud" hidden>
       <div class="hud-top">
         <div class="hud-brand"><span class="brand-name"></span><span class="brand-sub"></span></div>
-        <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
+        <div class="hud-chips">
+          <button id="btn-ps1" class="chip" type="button" aria-pressed="false" title="Draw the store like a 1995 console game">PS1<span class="chip-more"> mode</span> <kbd>P</kbd></button>
+          <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
+        </div>
       </div>
       <div id="crosshair"></div>
       <div id="resume-hint" hidden><kbd>Click</kbd> to look around</div>
@@ -29,6 +32,7 @@
         <span><kbd>Shift</kbd> hurry</span>
         <span><kbd>Click</kbd> pick up</span>
         <span><kbd>F</kbd> find</span>
+        <span><kbd>P</kbd> PS1 mode</span>
         <span><kbd>Esc</kbd> free the mouse</span>
       </div>
       <div class="hud-help touch-only">Left thumb: walk · Right thumb: look · Tap a tape to pick it up</div>
