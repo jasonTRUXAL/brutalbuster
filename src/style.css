@@ -396,6 +396,38 @@ body.drag-look #crosshair { display: none; }
 .theater-screen { background: #000; }
 .theater-screen iframe { display: block; width: 100%; height: 100%; border: 0; }
 
+/* the VCR's remote (rewind, pause, subtitles) */
+#remote {
+  position: fixed;
+  left: 50%;
+  bottom: max(64px, calc(env(safe-area-inset-bottom) + 50px)); /* above the hints */
+  transform: translateX(-50%);
+  z-index: 15;
+  max-width: calc(100vw - 32px);
+  animation: playIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.remote {
+  padding: 8px 10px 10px;
+  border-radius: 18px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(12px);
+  text-align: center;
+}
+.remote-title { display: block; margin: 0 6px 7px; font: 1rem/1.1 var(--mono); color: #b9ffcc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; }
+.remote-buttons { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.remote .btn { font-size: 1.05rem; padding: 0.55em 0.95em 0.48em; }
+.remote .btn[aria-pressed='true'] { background: var(--yellow); color: var(--navy-deep); border-color: transparent; }
+.remote .btn[aria-pressed='true'] kbd { color: var(--navy-deep); border-color: rgba(10, 15, 38, 0.4); }
+
+#btn-crouch {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(64px, calc(env(safe-area-inset-bottom) + 50px));
+  pointer-events: auto;
+  padding: 0.7em 1.1em;
+}
+
 #seat {
   position: fixed;
   right: max(16px, env(safe-area-inset-right));

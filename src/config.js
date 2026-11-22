@@ -41,6 +41,8 @@ export const DIM = {
 
   // Player
   EYE: 1.62,
+  CROUCH_EYE: 1.02, // eye height crouching (hold C, or the Crouch button on a touchscreen)
+  CROUCH_SPEED: 0.5, // walking speed crouched, as a share of normal
   RADIUS: 0.28,
   WALK: 2.4,
   RUN: 4.2,

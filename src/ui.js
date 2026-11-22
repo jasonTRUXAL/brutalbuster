@@ -12,6 +12,7 @@ export class UI {
     this.resumeHint = $('#resume-hint');
     this.inspect = $('#inspect');
     this.seat = $('#seat');
+    this.remote = $('#remote');
     this.directory = $('#directory');
     this.play = $('#play');
     this.tooltip = $('#tooltip');
@@ -34,6 +35,16 @@ export class UI {
     });
     this.seat.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="stand"]')) this.handlers.standUp?.();
+    });
+    this.remote.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-remote]');
+      if (!b) return;
+      b.blur(); // so Space doesn't press it again
+      this.handlers.remote?.(b.dataset.remote);
+    });
+    $('#btn-crouch').addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      this.handlers.crouch?.();
     });
     this.directory.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="close"]') || e.target === this.directory) this.handlers.closeDirectory?.();
@@ -106,6 +117,23 @@ export class UI {
     this.directory.hidden = mode !== 'directory';
     this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory');
     if (mode !== 'walk') this.hover(null);
+  }
+
+  /** The VCR's remote: `state` is { paused, subtitles, title }, or false to hide it. */
+  showRemote(state) {
+    const key = state ? `${state.paused}|${state.subtitles}|${state.title}` : '';
+    if (key === this.remoteKey) return;
+    this.remoteKey = key;
+    this.remote.hidden = !state;
+    if (!state) return;
+    $('.remote-title', this.remote).textContent = state.title ? `▶ ${state.title}` : '';
+    $('.remote-pause', this.remote).textContent = state.paused ? '▶ Play' : '❚❚ Pause';
+    $('[data-remote="subtitles"]', this.remote).setAttribute('aria-pressed', String(state.subtitles));
+  }
+
+  /** The touchscreen's Crouch toggle. */
+  setCrouch(on) {
+    $('#btn-crouch').setAttribute('aria-pressed', String(on));
   }
 
   /** Show whether PS1 Mode is on (the HUD toggle). */

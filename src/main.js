@@ -94,6 +94,7 @@ async function main() {
   const inspector = new Inspector(catalog);
   // the lounge's VCR, projector screen and couches
   const theater = new Theater({ plan, parts: store.annex.lounge, canvas });
+  if (!isTouch) theater.prepare(); // its YouTube player, now, before the mouse is captured (see prepare())
   // The prize corner's machines. Every capsule / jackpot is announced as a `bb:prize`
   // event; that's where the always-win reward system will plug in.
   const arcade = new Arcade(store.prizes, {
@@ -351,13 +352,21 @@ async function main() {
     mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     if (mode === 'play' && arcade.seated) arcade.active.pointer?.(mouse, camera); // e.g. aiming the Lucky Hit drop
   });
+  // (the VCR takes the tape when the button comes back up: if anything should make the
+  // browser let go of the mouse, it won't be half way through a click)
+  let pressingVcr = false;
   canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     if (mode === 'play' && arcade.seated) arcade.active.primary(true);
-    else if (mode === 'walk' && controls.locked) activateHovered();
+    else if (mode === 'walk' && controls.locked) {
+      if (target?.kind === 'vcr') pressingVcr = true;
+      else activateHovered();
+    }
   });
   window.addEventListener('mouseup', () => {
     if (mode === 'play' && arcade.seated) arcade.active.primary(false);
+    if (pressingVcr && mode === 'walk' && target?.kind === 'vcr') insertTape();
+    pressingVcr = false;
   });
   window.addEventListener('blur', () => arcade.active?.primary(false));
   canvas.addEventListener('click', () => {
@@ -393,8 +402,9 @@ async function main() {
       }
       return;
     }
+    if (remoteKey(e)) return;
     if (mode === 'sit') {
-      if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) standUp(true); // walking off gets you up
+      if (/^Key[WASD]$/.test(e.code)) standUp(true); // walking off gets you up
       return;
     }
     if (mode === 'walk' && e.code === 'KeyE') activateHovered();
@@ -411,6 +421,37 @@ async function main() {
       }
     }
   });
+
+  /**
+   * The VCR's remote, while it's on screen (on the couch, or standing at the VCR with a
+   * tape playing): R (or ← on the couch) back 5 seconds, Space play / pause, T subtitles.
+   */
+  function remoteKey(e) {
+    if (!remoteShown || e.repeat) return false;
+    const act = e.code === 'KeyR' || (mode === 'sit' && e.code === 'ArrowLeft') ? 'rewind' : e.code === 'Space' ? 'pause' : e.code === 'KeyT' ? 'subtitles' : null;
+    if (!act) return false;
+    e.preventDefault();
+    remote(act);
+    return true;
+  }
+
+  function remote(act) {
+    if (act === 'rewind') theater.rewind();
+    else if (act === 'pause') theater.togglePause();
+    else if (act === 'subtitles') theater.toggleCaptions();
+  }
+  ui.on('remote', remote);
+  ui.on('crouch', () => {
+    controls.crouchToggle = !controls.crouchToggle;
+    ui.setCrouch(controls.crouchToggle);
+  });
+
+  // the remote shows on the couch, or standing at the VCR empty-handed, once a tape's playing
+  let remoteShown = false;
+  function updateRemote() {
+    remoteShown = theater.controllable && (mode === 'sit' || (mode === 'walk' && !carried && theater.nearVcr(camera.position)));
+    ui.showRemote(remoteShown && { paused: theater.paused, subtitles: theater.captions, title: inVcr?.video.title });
+  }
 
   window.addEventListener('keyup', (e) => {
     if (mode === 'play' && (e.code === 'Space' || e.code === 'Enter')) {
@@ -514,6 +555,7 @@ async function main() {
       if (!isTouch) setTarget(aim(controls.dragLook ? mouse : center));
       else setTarget(carried && theater.nearVcr(camera.position) ? aim(center) : null);
     }
+    updateRemote();
     store.update(dt, time);
     inspector.update(dt, mode === 'walk' ? Math.min(1, Math.hypot(controls.vel.x, controls.vel.z) / DIM.WALK) : 0);
     flushTimer += dt;
@@ -553,6 +595,7 @@ async function main() {
       get hovered() { return hovered; },
       get target() { return target; },
       get carried() { return carried; },
+      get remoteShown() { return remoteShown; },
       get inVcr() { return inVcr; },
       /** Let go of any tape you're carrying and empty the VCR (resets between tests). */
       emptyHands() {

@@ -59,6 +59,7 @@ const test = base.extend({
       if (bb.mode === 'play') bb.exitPlay(false);
       if (bb.mode === 'sit') bb.standUp(false);
       bb.emptyHands(); // nothing carried, nothing in the VCR
+      bb.controls.crouchToggle = false;
       if (bb.ps1.enabled) bb.setPS1(false, false);
       bb.advance(1); // let any put-back / stand-up animation finish
       if (bb.mode !== 'splash') bb.setMode('walk');
@@ -377,10 +378,17 @@ test('Grab a tape, carry it to the lounge VCR, and it plays on the big screen', 
   expect(await stand('couches')).toBeNull();
   expect(await stand('vcr')).toBe('Insert tape');
 
+  // The player was set up while the store loaded, and putting a tape in adds nothing to
+  // the page (adding a frame mid-click can make the browser let go of the mouse).
+  const player = page.locator('#theater iframe');
+  await expect(player).toHaveCount(1);
+  expect(await player.evaluate((f) => f.inert), "the player can't take the focus (and the mouse with it)").toBe(true);
+
   // put it in: the VCR's intro (black, static while it tracks, the tape's details), then
   // the picture, with the player behind the canvas
   await page.keyboard.press('KeyE');
-  await advance(page, 0.05); // (the player goes into the page with the next frame)
+  await advance(page, 0.05);
+  await expect(player).toHaveCount(1);
   const screen = () =>
     page.evaluate(() => {
       const bb = window.__bb;
@@ -391,15 +399,13 @@ test('Grab a tape, carry it to the lounge VCR, and it plays on the big screen', 
     return { inVcr: bb.inVcr?.video.youtubeId, carried: bb.carried, screen: bb.store.annex.lounge.projection.mode };
   });
   expect(playing).toEqual({ inVcr: linked, carried: null, screen: 'intro' });
-  const player = page.locator('#theater iframe');
-  await expect(player).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}\\?autoplay=0`));
-  expect(await player.evaluate((f) => f.inert), "the player can't take the focus (and the mouse with it)").toBe(true);
   await advance(page, 5);
   expect(await screen(), 'five seconds in: still the intro, the player hidden').toEqual({ mode: 'intro', vcr: 'LOAD', player: 'hidden' });
-  // (YouTube is blocked here, so the player never answers: it's reloaded playing, and
-  // shown after a wait)
+  // (YouTube is blocked here, so the player never answers: the tape is loaded into it,
+  // playing, and shown after a wait)
   await advance(page, 2.5);
   expect((await screen()).mode).toBe('wait');
+  await expect(player).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}\\?autoplay=1`));
   await advance(page, 3.5);
   expect(await screen()).toEqual({ mode: 'video', vcr: expect.stringMatching(/^0:00:0\d$/), player: '' }); // (the counter's running)
   expect(await page.evaluate(() => document.querySelector('#tooltip').hidden), 'empty-handed at the VCR, nothing is said').toBe(true);
@@ -449,6 +455,80 @@ test('sit on a lounge couch, and stand back up', async ({ store: page }, testInf
   expect(['paused', 'walk'], 'up off the couch (paused, or walking with drag-to-look)').toContain(stood.mode);
   stood.at.forEach((v, k) => expect(v).toBeCloseTo(aimed.at[k], 3));
   await expect(page.locator('#seat')).toBeHidden();
+});
+
+test("the VCR's remote: on the couch or at the VCR, R / Space / T", async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'same on phone');
+  // a tape playing, with the player standing in for YouTube (blocked here): it records
+  // what it's told
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    const v = bb.plan.slots.find((s) => s.video.youtubeId).video;
+    bb.theater.insert(v);
+    bb.advance(11);
+  });
+  await page.waitForTimeout(800); // (the blocked page loads, and the player starts over saying hello)
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    Object.assign(bb.theater, { heard: true, fallback: false, sent: [] });
+    bb.theater._post = (m) => m.func !== 'setVolume' && bb.theater.sent.push(m.func || m.event); // (the volume follows you)
+    bb.setMode('walk');
+    const L = bb.plan.lounge;
+    bb.controls.teleport(L.x1 - 0.8, L.screen.z, Math.PI / 2, 0);
+    bb.advance(0.1);
+  });
+  expect(await page.evaluate(() => window.__bb.remoteShown), 'away from the VCR, standing: no remote').toBe(false);
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    bb.sitDown(bb.plan.lounge.seats[1]);
+    bb.advance(1);
+  });
+  await expect(page.locator('#remote')).toBeVisible();
+  await page.keyboard.press('KeyR');
+  await page.keyboard.press('ArrowLeft'); // (on the couch, like YouTube)
+  await page.keyboard.press('Space');
+  await page.keyboard.press('KeyT');
+  await page.evaluate(() => window.__bb.advance(0.05));
+  await expect(page.locator('.remote-pause')).toHaveText('▶ Play');
+  await expect(page.locator('[data-remote="subtitles"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-remote="pause"]').click();
+  await page.locator('[data-remote="subtitles"]').click();
+  const sent = await page.evaluate(() => window.__bb.theater.sent);
+  expect(sent).toEqual(['seekTo', 'seekTo', 'pauseVideo', 'loadModule', 'playVideo', 'unloadModule']);
+  expect(await page.evaluate(() => window.__bb.mode), 'the arrow key rewound, it didn’t stand you up').toBe('sit');
+
+  // standing at the VCR, empty-handed: the remote too
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    bb.standUp(false);
+    bb.advance(1);
+    bb.setMode('walk');
+    const L = bb.plan.lounge;
+    bb.controls.teleport(L.cabinet.x + L.cabinet.d / 2 + 0.7, L.vcr.z, Math.PI / 2, -0.3);
+    bb.advance(0.1);
+  });
+  await expect(page.locator('#remote')).toBeVisible();
+  await page.evaluate(() => delete window.__bb.theater._post); // (the real one back)
+});
+
+test('crouching: hold C (a toggle on a touchscreen)', async ({ store: page }, testInfo) => {
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    bb.setMode('walk');
+    const s = bb.plan.spawn;
+    bb.controls.teleport(s.x, s.z, s.yaw, 0);
+    bb.advance(0.5);
+  });
+  const eye = () => page.evaluate(() => window.__bb.camera.position.y);
+  expect(await eye()).toBeCloseTo(1.62, 2);
+  if (isPhone(testInfo)) await page.locator('#btn-crouch').tap();
+  else await page.keyboard.down('KeyC');
+  await advance(page, 1);
+  expect(await eye()).toBeCloseTo(1.02, 2);
+  if (isPhone(testInfo)) await page.locator('#btn-crouch').tap();
+  else await page.keyboard.up('KeyC');
+  await advance(page, 1);
+  expect(await eye()).toBeCloseTo(1.62, 2);
 });
 
 test('phone: pick up a tape, panel at the bottom, put it back', async ({ store: page }, testInfo) => {

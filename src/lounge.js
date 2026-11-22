@@ -214,7 +214,11 @@ function buildVcr(B, m, mat, v, group) {
 const DW = 192;
 const DH = 48;
 
-/** The VCR's glowing display: a blinking 12:00 while it's empty, LOAD while a tape spins up, then ▶ and a counter. */
+/**
+ * The VCR's glowing display: a blinking 12:00 while it's empty, LOAD while a tape spins
+ * up, then ▶ (or ❚❚ while paused) and the counter. theater.js sets `counter` from the
+ * player when it can; otherwise it just counts up while playing.
+ */
 class VcrDisplay {
   constructor(group, x, y, z) {
     this.canvas = makeCanvas(DW, DH);
@@ -228,12 +232,15 @@ class VcrDisplay {
     group.add(mesh);
     this.state = 'idle';
     this.time = 0;
+    this.counter = 0;
     this.text = null;
     this._paint();
   }
 
-  /** 'idle' (no tape), 'load' (a tape going in) or 'play' (the counter starts from zero). */
+  /** 'idle' (no tape), 'load' (a tape going in), 'play' or 'pause'. */
   setState(state) {
+    if (state === this.state) return;
+    if (state === 'load' || state === 'idle') this.counter = 0;
     this.state = state;
     this.time = 0;
     this._paint();
@@ -241,21 +248,23 @@ class VcrDisplay {
 
   update(dt) {
     this.time += dt;
+    if (this.state === 'play') this.counter += dt;
     this._paint();
   }
 
   _paint() {
     let text;
-    if (this.state === 'play') {
-      const t = Math.floor(this.time);
+    if (this.state === 'play' || this.state === 'pause') {
+      const t = Math.floor(this.counter);
       text = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
     } else if (this.state === 'load') {
       text = 'LOAD';
     } else {
       text = this.time % 1 < 0.5 ? '12:00' : ''; // nobody ever set the clock
     }
-    if (text === this.text) return;
+    if (text === this.text && this.state === this.painted) return;
     this.text = text;
+    this.painted = this.state;
     const ctx = this.ctx;
     ctx.fillStyle = '#071311';
     ctx.fillRect(0, 0, DW, DH);
@@ -264,8 +273,12 @@ class VcrDisplay {
     ctx.shadowBlur = 8;
     ctx.font = `44px ${FONT.vt}`;
     ctx.textBaseline = 'middle';
-    if (this.state === 'play') {
-      playTriangle(ctx, 14, DH / 2, 22);
+    if (this.state === 'pause') {
+      ctx.fillRect(14, DH / 2 - 11, 7, 22);
+      ctx.fillRect(26, DH / 2 - 11, 7, 22);
+    }
+    if (this.state === 'play' || this.state === 'pause') {
+      if (this.state === 'play') playTriangle(ctx, 14, DH / 2, 22);
       ctx.textAlign = 'right';
       ctx.fillText(text, DW - 10, DH / 2 + 2);
     } else {

@@ -30,12 +30,14 @@
       <div class="hud-help desktop-only">
         <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span>
         <span><kbd>Shift</kbd> hurry</span>
+        <span><kbd>C</kbd> crouch</span>
         <span><kbd>Click</kbd> pick up</span>
         <span><kbd>F</kbd> find</span>
         <span><kbd>P</kbd> PS1 mode</span>
         <span><kbd>Esc</kbd> free the mouse</span>
       </div>
       <div class="hud-help touch-only">Left thumb: walk · Right thumb: look · Tap a tape to pick it up</div>
+      <button id="btn-crouch" class="chip touch-only" type="button" aria-pressed="false">Crouch</button>
       <div id="joystick"><div class="knob"></div></div>
     </div>
 
@@ -53,6 +55,7 @@
         <div class="controls-legend desktop-only">
           <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>walk the aisles</span></div>
           <div><kbd>Mouse</kbd><span>look around</span></div>
+          <div><kbd>C</kbd><span>crouch (hold)</span></div>
           <div><kbd>Click</kbd><span>pick up a tape</span></div>
           <div><kbd>F</kbd><span>find a title</span></div>
         </div>
@@ -91,6 +94,18 @@
         </div>
         <div class="pp-body"></div>
         <button class="btn ghost pp-stand" data-act="stand" type="button">Stand up <kbd>Esc</kbd></button>
+      </div>
+    </section>
+
+    <!-- The VCR's remote: on the couch, or at the VCR, while a tape plays -->
+    <section id="remote" hidden>
+      <div class="remote" role="group" aria-label="VCR">
+        <span class="remote-title"></span>
+        <div class="remote-buttons">
+          <button class="btn" data-remote="rewind" type="button">◀◀ 5s <kbd>R</kbd></button>
+          <button class="btn" data-remote="pause" type="button"><span class="remote-pause">Pause</span> <kbd>Space</kbd></button>
+          <button class="btn" data-remote="subtitles" type="button" aria-pressed="false">Subtitles <kbd>T</kbd></button>
+        </div>
       </div>
     </section>
 

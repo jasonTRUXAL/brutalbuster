@@ -7,11 +7,12 @@
 // canvas see-through over the screen, so the player shows through there and anything in
 // front of the screen (a wall, a couch, the tape you're carrying) still hides it.
 //
-// A tape starts like an old VCR's (ProjectorScreen's intro: black, static while it
-// auto-tracks, the tape's details), and the video itself starts at the end of that. The
-// player loads paused meanwhile. Starting it, the volume (fading as you walk away) and
-// "the tape has ended" all go through YouTube's embed messages (the same ones its own
-// iframe API sends).
+// There's one player, set up empty ahead of time (prepare()): putting a tape in only
+// sends it a message to load that video, paused, while the screen runs the VCR's intro
+// (black, static while it auto-tracks, the tape's details); the video starts at the end
+// of that. Loading, starting, the remote's rewind / pause / subtitles, the volume (fading
+// as you walk away) and "the tape has ended" all go through YouTube's embed messages (the
+// same ones its own iframe API sends).
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { DIM } from './config.js';
@@ -37,7 +38,7 @@ export class Theater {
 
     this.css = new CSS3DRenderer();
     this.css.domElement.id = 'theater';
-    this.css.domElement.style.display = 'none';
+    this.css.domElement.style.visibility = 'hidden';
     this.css.setSize(window.innerWidth, window.innerHeight);
     canvas.before(this.css.domElement); // underneath the canvas
     this.cssScene = new THREE.Scene();
@@ -59,9 +60,15 @@ export class Theater {
 
     this.video = null; // the tape that's in
     this.iframe = null;
+    this.attached = false;
     this.stage = null; // 'intro' | 'starting' (asked it to play) | 'playing'
+    this.cued = false; // has the player been told to load this tape?
+    this.fallback = false; // it never answered, so the tape was loaded into it directly
     this.waited = 0;
     this.playing = false; // has the player said it's playing?
+    this.paused = false;
+    this.time = 0; // where the tape is, in seconds (as the player last said)
+    this.captions = load('bb.cc') === '1'; // subtitles: off unless you've turned them on
     this.shown = false;
     this.volume = -1;
     this.heard = false; // has the player answered yet?
@@ -82,61 +89,119 @@ export class Theater {
     return dx * v.n.x + dz * v.n.z > 0 && Math.hypot(dx, dz) < DIM.VCR_NEAR;
   }
 
-  /** Put a tape in: the VCR's intro on the screen while the player loads, paused, behind it. */
-  insert(video) {
-    this.eject();
-    this.video = video;
+  /**
+   * Set up the player, empty, ahead of time. Adding a frame to the page can make the
+   * browser let go of a captured mouse, and a click that loses it half way through
+   * lands on whatever's under the hidden cursor (once, the Windows Start button). So on
+   * a computer main.js calls this while the store's still loading, and putting a tape in
+   * later only sends the player a message. (Touchscreens wait for the first tape.)
+   */
+  prepare() {
+    if (this.iframe) return;
     const f = document.createElement('iframe');
-    f.src = this._src(video, false);
-    f.title = video.title;
+    f.src = this._src(null, false);
+    f.title = 'The lounge screen';
     f.allow = 'autoplay; encrypted-media';
     f.referrerPolicy = 'strict-origin-when-cross-origin';
     // Nothing in it is clicked or typed into (the canvas is on top), and it mustn't take
-    // the focus: losing focus to a frame makes the browser let go of the mouse.
+    // the focus, which also makes the browser let go of the mouse.
     f.inert = true;
     f.tabIndex = -1;
     f.addEventListener('load', () => {
-      this.listenIn = 0; // start asking it for news
+      this.heard = false; // (a new page in it: say hello again)
+      this.listenIn = 0;
       this.asks = 0;
     });
     this.holder.appendChild(f);
     this.iframe = f;
     this.listenIn = Infinity; // (once it has loaded)
+  }
+
+  /** Put a tape in: the VCR's intro on the screen while the player loads it, paused, behind. */
+  insert(video) {
+    this.eject();
+    this.prepare();
+    this.video = video;
+    this.cued = false;
+    if (this.heard) this._cue();
     this.stage = 'intro';
     this.playing = false;
+    this.paused = false;
+    this.time = 0;
     this.projection.startIntro(tapeDetails(video));
     this.display.setState('load');
-    this.shown = false;
-    this.css.domElement.style.visibility = 'hidden';
-    this.css.domElement.style.display = '';
   }
 
   _src(video, autoplay) {
     const q = new URLSearchParams({ autoplay: autoplay ? 1 : 0, controls: 0, rel: 0, modestbranding: 1, playsinline: 1, iv_load_policy: 3, disablekb: 1, enablejsapi: 1, origin: location.origin });
-    return `${YT}/embed/${encodeURIComponent(video.youtubeId)}?${q}`;
+    return `${YT}/embed/${video ? encodeURIComponent(video.youtubeId) : ''}?${q}`;
   }
 
-  /** The intro's over: start the video. (If the player never answered, load it again, playing.) */
+  _command(func, ...args) {
+    this._post({ event: 'command', func, args });
+  }
+
+  _cue() {
+    this._command('cueVideoById', { videoId: this.video.youtubeId, startSeconds: 0 });
+    this.cued = true;
+  }
+
+  /** The intro's over: start the video. (If the player never answered, load the tape into it, playing.) */
   _start() {
     this.stage = 'starting';
     this.waited = 0;
     this.projection.setMode('wait');
-    if (this.heard) this._post({ event: 'command', func: 'playVideo', args: [] });
-    else this.iframe.src = this._src(this.video, true);
+    if (this.heard && this.cued) this._command('playVideo');
+    else {
+      this.fallback = true;
+      this.iframe.src = this._src(this.video, true);
+    }
   }
 
   /** Stop the tape: the screen goes back to the bouncing logo. */
   eject() {
     if (!this.video) return;
-    this.holder.textContent = '';
-    this.iframe = null;
+    if (this.fallback) this.iframe.src = this._src(null, false); // back to the empty player
+    else this._command('stopVideo');
     this.video = null;
     this.stage = null;
-    this.volume = -1;
-    this.heard = false;
+    this.fallback = false;
+    this.paused = false;
     this.projection.setMode('logo');
     this.display.setState('idle');
-    this.css.domElement.style.display = 'none';
+  }
+
+  // ------------------------------------------------------------ the remote
+
+  /** True once the tape's picture is up and the player takes orders. */
+  get controllable() {
+    return this.stage === 'playing' && this.heard && !this.fallback;
+  }
+
+  /** Back five seconds (what YouTube's ← key does). */
+  rewind(seconds = 5) {
+    if (!this.controllable) return;
+    this.time = Math.max(0, this.time - seconds);
+    this._command('seekTo', this.time, true);
+    this.display.counter = this.time;
+  }
+
+  togglePause() {
+    if (!this.controllable) return;
+    this.paused = !this.paused;
+    this._command(this.paused ? 'pauseVideo' : 'playVideo');
+    this.display.setState(this.paused ? 'pause' : 'play');
+  }
+
+  /** Subtitles on or off (remembered on this browser). */
+  toggleCaptions() {
+    this.captions = !this.captions;
+    save('bb.cc', this.captions ? '1' : '0');
+    if (this.controllable) this._applyCaptions();
+  }
+
+  _applyCaptions() {
+    this._command(this.captions ? 'loadModule' : 'unloadModule', 'captions');
   }
 
   _post(msg) {
@@ -151,10 +216,19 @@ export class Theater {
     } catch {
       return;
     }
-    if (!this.heard) this.volume = -1; // it's listening now: send the volume again
-    this.heard = true;
-    const state = data?.event === 'onStateChange' ? data.info : data?.event === 'infoDelivery' ? data.info?.playerState : undefined;
+    if (!this.heard) {
+      this.volume = -1; // it's listening now: send the volume again
+      this.heard = true;
+      if (this.video && !this.cued && !this.fallback) this._cue(); // a tape went in before it was ready
+    }
+    const info = data?.event === 'infoDelivery' ? data.info : null;
+    if (typeof info?.currentTime === 'number' && this.stage === 'playing') this.display.counter = this.time = info.currentTime;
+    const state = data?.event === 'onStateChange' ? data.info : info?.playerState;
     if (state === 1) this.playing = true;
+    if ((state === 1 || state === 2) && this.stage === 'playing' && !this.fallback) {
+      this.paused = state === 2; // (it can pause itself, buffering at the end, say)
+      this.display.setState(this.paused ? 'pause' : 'play');
+    }
     if (state === 0 && this.stage === 'playing') {
       // the end of the tape
       const video = this.video;
@@ -222,6 +296,12 @@ export class Theater {
         }
       }
     }
+    // until the player answers, keep asking it to (it ignores us until it's ready); give
+    // up after ten seconds (it didn't load: blocked, say), and it just plays at full volume
+    if (this.iframe && !this.heard && (this.listenIn -= dt) <= 0) {
+      this._post({ event: 'listening' });
+      this.listenIn = ++this.asks < 20 ? 0.5 : Infinity;
+    }
     if (!this.video) return;
     if (this.stage === 'intro' && this.projection.introDone) this._start();
     else if (this.stage === 'starting' && (this.playing || (this.waited += dt) >= START_WAIT)) {
@@ -229,14 +309,8 @@ export class Theater {
       this.stage = 'playing';
       this.projection.setMode('blip');
       this.display.setState('play');
+      if (this.controllable) this._applyCaptions();
       this.onPicture?.();
-    }
-
-    // until the player answers, keep asking it to (it ignores us until it's ready); give
-    // up after ten seconds (it didn't load: blocked, say), and it just plays at full volume
-    if (!this.heard && (this.listenIn -= dt) <= 0) {
-      this._post({ event: 'listening' });
-      this.listenIn = ++this.asks < 20 ? 0.5 : Infinity;
     }
     // full volume in the lounge, fading with distance, and fainter through the walls
     const s = this.L.screen;
@@ -256,13 +330,14 @@ export class Theater {
    * (It's laid out even then: an iframe that isn't in the page doesn't load.)
    */
   render(camera, rooms) {
-    if (!this.video) return;
-    const shown = this.projection.mode === 'video' && rooms.has('lounge');
+    if (!this.iframe) return;
+    const shown = Boolean(this.video) && this.projection.mode === 'video' && rooms.has('lounge');
     if (shown !== this.shown) {
       this.shown = shown;
       this.css.domElement.style.visibility = shown ? '' : 'hidden';
     }
-    this.css.render(this.cssScene, camera);
+    if (shown || !this.attached) this.css.render(this.cssScene, camera);
+    this.attached = true;
   }
 
   resize(w, h) {
@@ -277,4 +352,21 @@ export function tapeDetails(video) {
   if (d && !Number.isNaN(d.getTime())) lines.push(`PUBLISHED ${MONTHS[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, '0')} ${d.getUTCFullYear()}`);
   if (video.duration) lines.push(`LENGTH ${video.duration}`);
   return { title: video.title, lines };
+}
+
+// localStorage can be missing or refuse (private browsing): then it just isn't remembered
+function load(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function save(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // not remembered
+  }
 }

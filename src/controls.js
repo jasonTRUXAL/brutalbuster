@@ -1,5 +1,6 @@
 // First-person walking: pointer-lock mouse look + WASD on desktop, a virtual
 // joystick + drag-to-look on touch screens. Collides with the shelving footprint.
+// Crouching (hold C, or the touchscreen's Crouch toggle) lowers your eyes and slows you.
 import * as THREE from 'three';
 import { DIM } from './config.js';
 import { clamp } from './util.js';
@@ -22,6 +23,8 @@ export class PlayerControls {
     this.keys = new Set();
     this.joy = { x: 0, y: 0 };
     this.bob = 0;
+    this.eye = DIM.EYE; // eased toward DIM.CROUCH_EYE while crouching
+    this.crouchToggle = false; // the touchscreen's Crouch button
     this.sensitivity = 0.0022;
     this.onLockChange = () => {};
     this.onTap = () => {};
@@ -128,7 +131,9 @@ export class PlayerControls {
       fz /= len;
     }
     const run = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || Math.hypot(this.joy.x, this.joy.y) > 0.95;
-    const speed = run ? DIM.RUN : DIM.WALK;
+    const crouch = this.crouching;
+    const speed = (run && !crouch ? DIM.RUN : DIM.WALK) * (crouch ? DIM.CROUCH_SPEED : 1);
+    if (this.enabled) this.eye += ((crouch ? DIM.CROUCH_EYE : DIM.EYE) - this.eye) * (1 - Math.exp(-dt * 12)); // (held still while a tape's in your hands)
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
     const tx = (fz * -sin + fx * cos) * speed;
@@ -144,6 +149,11 @@ export class PlayerControls {
     const v = Math.hypot(this.vel.x, this.vel.z);
     this.bob += v * dt * 3.2;
     this._apply(Math.min(1, v / DIM.WALK));
+  }
+
+  /** Crouching: holding C, or the touchscreen's toggle. */
+  get crouching() {
+    return this.keys.has('KeyC') || this.crouchToggle;
   }
 
   _collide() {
@@ -181,7 +191,7 @@ export class PlayerControls {
 
   _apply(moving = 0) {
     const c = this.camera;
-    c.position.set(this.pos.x, DIM.EYE + Math.sin(this.bob) * 0.018 * moving, this.pos.z);
+    c.position.set(this.pos.x, this.eye + Math.sin(this.bob) * 0.018 * moving, this.pos.z);
     c.rotation.set(this.pitch, this.yaw, Math.sin(this.bob * 0.5) * 0.004 * moving, 'YXZ');
   }
 

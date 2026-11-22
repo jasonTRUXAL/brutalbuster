@@ -33,6 +33,8 @@ The work is split into passes, each finished and approved before the next:
    - Put the tape in and it starts like an old VCR, in about seven seconds (user's follow-up): a moment of black, the blue screen full of static while it auto-tracks (like the counter TV), then the tape's title, upload date and length on their own lines, and a blip into the video, which starts from the beginning then. The video is a real YouTube player lined up behind the see-through screen, so walls and furniture still hide it. It plays on as you walk round, quieter further off. A new tape sends the old one back to its shelf, as does the end of the tape.
    - With no tape in, a made-up VHS logo bounces round the screen like an idle DVD player's, changing colour at each bounce. It replaced the box-art slideshow.
    - You can sit on either couch (three seats each), but sitting does nothing else.
+   - **The remote** (user's follow-up): while a tape plays, on the couch or standing at the VCR, a small panel offers back 5 seconds (YouTube's ← key), pause / play and subtitles. Keys R (← on the couch too), Space and T. Subtitles are off unless you turn them on, and the choice is remembered.
+   - **Crouching** (user's follow-up): hold C on a computer, or tap the **Crouch** toggle on a phone. Your eyes drop to about a metre and you walk at half speed.
 
 ## Prize corner (built)
 
@@ -79,4 +81,5 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 - **2026-11-04:** PS1 Mode applies to everything except the video thumbnails, as asked. The whole box front counts as "thumbnail" so titles stay readable. The choice is per browser (remembered), and off by default.
 - **2026-11-21:** New rooms. A hallway opposite the counter leads to a wing that's a lounge (front third: couches, projector) and Streams (back two-thirds). A door in the back right-hand corner leads to Extras. Built in passes: rooms and props first, then content, then the working projector.
 - **2026-11-21:** Streams is stocked from moose2 and shelved by year. Extras keeps its empty shelves and boxes until the user has compiled what goes in it.
+- **2026-11-22:** The lounge VCR has a remote (rewind 5 s, pause / play, subtitles) on the couch or at the VCR, and you can crouch (hold C; a toggle on phones). Putting a tape in no longer adds the YouTube player to the page: it's set up while the store loads, because adding it mid-click freed the mouse and the click landed on the Windows taskbar.
 - **2026-11-21:** The lounge works the user's way: no pop-up TV. **Grab** a tape, carry it (shown in the lower third, facing you) to the VCR you find by exploring, and it plays on the big screen. The VCR speaks up only when you bring a tape. An empty screen shows a bouncing VHS logo, and the couches are just for sitting.
