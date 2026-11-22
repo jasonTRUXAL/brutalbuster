@@ -71,20 +71,19 @@ export class PlayerControls {
       this.failures = 99;
       return this._lockFailed();
     }
+    // Plain pointer lock, not raw input ({ unadjustedMovement: true }). With raw input,
+    // Chrome and Edge on Windows stop pulling the hidden cursor back to the middle of
+    // the window, so it drifts: look down (at the lounge's VCR, say) and it reaches the
+    // bottom of the screen, where the taskbar can take the next click (it opened the
+    // Start menu, and the store lost the mouse).
     let p = null;
     try {
-      p = this.dom.requestPointerLock({ unadjustedMovement: true });
+      p = this.dom.requestPointerLock();
     } catch {
       p = null;
     }
     this._promiseApi = Boolean(p && p.catch);
-    if (!this._promiseApi) return;
-    p.catch((err) => {
-      if (err?.name !== 'NotSupportedError') return this._lockFailed(quiet);
-      // raw mouse input isn't available everywhere — retry without it
-      const p2 = this.dom.requestPointerLock();
-      p2?.catch?.(() => this._lockFailed(quiet));
-    });
+    if (this._promiseApi) p.catch(() => this._lockFailed(quiet));
   }
 
   /** A single failure is usually the browser's post-Esc cooldown; twice in a row means

@@ -352,8 +352,8 @@ async function main() {
     mouse.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
     if (mode === 'play' && arcade.seated) arcade.active.pointer?.(mouse, camera); // e.g. aiming the Lucky Hit drop
   });
-  // (the VCR takes the tape when the button comes back up: if anything should make the
-  // browser let go of the mouse, it won't be half way through a click)
+  // (the VCR takes the tape when the button comes back up, so whatever starts then can't
+  // interrupt the click)
   let pressingVcr = false;
   canvas.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;

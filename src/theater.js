@@ -90,11 +90,10 @@ export class Theater {
   }
 
   /**
-   * Set up the player, empty, ahead of time. Adding a frame to the page can make the
-   * browser let go of a captured mouse, and a click that loses it half way through
-   * lands on whatever's under the hidden cursor (once, the Windows Start button). So on
-   * a computer main.js calls this while the store's still loading, and putting a tape in
-   * later only sends the player a message. (Touchscreens wait for the first tape.)
+   * Set up the player, empty, ahead of time: on a computer main.js calls this while the
+   * store's still loading, so putting a tape in later only sends the player a message,
+   * and nothing is added to the page while you're walking round with the mouse captured.
+   * (Touchscreens wait for the first tape.)
    */
   prepare() {
     if (this.iframe) return;

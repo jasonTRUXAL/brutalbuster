@@ -511,6 +511,28 @@ test("the VCR's remote: on the couch or at the VCR, R / Space / T", async ({ sto
   await page.evaluate(() => delete window.__bb.theater._post); // (the real one back)
 });
 
+test('the mouse is captured with plain pointer lock, not raw input', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'no pointer lock on a touchscreen');
+  // (raw input lets the hidden cursor drift to the screen edge on Windows, where the
+  // taskbar can take a click: see CLAUDE.md)
+  const asked = await page.evaluate(() => {
+    const { controls } = window.__bb;
+    const dom = controls.dom;
+    const was = { dragLook: controls.dragLook, request: dom.requestPointerLock };
+    const calls = [];
+    dom.requestPointerLock = (...args) => {
+      calls.push(args);
+      return Promise.resolve();
+    };
+    controls.dragLook = false;
+    controls.lock();
+    dom.requestPointerLock = was.request;
+    controls.dragLook = was.dragLook;
+    return calls;
+  });
+  expect(asked).toEqual([[]]);
+});
+
 test('crouching: hold C (a toggle on a touchscreen)', async ({ store: page }, testInfo) => {
   await page.evaluate(() => {
     const bb = window.__bb;
