@@ -10,7 +10,7 @@ npm run check          # everything CI runs: lint, catalog, unit, build, browser
 npm run check:fast     # lint + catalog contract + unit tests (~2s), for quick feedback
 npm test               # unit tests only (node --test, no browser)
 npm run test:smoke     # Playwright against the dev server, using installed Edge/Chrome
-npm run sync           # rebuild public/catalog.json from the channel (needs youtube.channel)
+npm run sync           # rebuild public/catalog.json and each area's catalog (public/streams.json) from YouTube
 ```
 
 Run `npm run check` before committing. CI (`.github/workflows/ci.yml`) runs the same steps on every push and PR.
@@ -21,7 +21,7 @@ Each area can change independently as long as it keeps its contract with the oth
 
 | Workstream | Owns | Contract with the rest |
 |---|---|---|
-| **Content pipeline** | `scripts/`, `store.config.json`, `catalog.overrides.json` | Writes `public/catalog.json` per `docs/catalog-format.md`, validated by `src/catalog-schema.js` |
+| **Content pipeline** | `scripts/`, `store.config.json`, `catalog.overrides.json` | Writes `public/catalog.json` (sales floor) and one file per `areas` entry (`public/streams.json`), all per `docs/catalog-format.md` and validated by `src/catalog-schema.js` |
 | **The store (world)** | `layout.js`, `store.js`, `fixtures.js` (shared building blocks), `rooms.js` (hallway, Streams, Extras), `lounge.js`, `tapes.js`, `atlas.js`, `covers.js`, `textures.js`, `crt.js`, `config.js`, `prizes.js` (prize-corner props) | Reads the normalized catalog; exposes `plan.slots`, `TapeShelves` and `store.colliders` to `main.js` |
 | **PS1 Mode** | `ps1.js` | Draws any scene in the PS1 style. Relies on two material flags set by the world (see Conventions); `main.js` and `inspect.js` call its render methods |
 | **Interaction and viewing** | `main.js` (state machine), `controls.js`, `inspect.js`, `ui.js`, `style.css`, `index.html` | Modes are `splash`, `walk`, `paused`, `inspect`, `watch`, `directory`, `play`. The next big feature (the viewing experience) lives here |

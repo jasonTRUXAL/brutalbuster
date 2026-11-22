@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { isoDuration, findYear, decodeXml, trimDescription, parseChannel, extractChannelId, parseRssFeed } from '../../scripts/lib/youtube-parse.mjs';
-import { buildCatalog } from '../../scripts/lib/build-catalog.mjs';
+import { buildCatalog, catalogTargets } from '../../scripts/lib/build-catalog.mjs';
 import { validateCatalog } from '../../src/catalog-schema.js';
 
 test('isoDuration', () => {
@@ -161,4 +161,44 @@ test('store.config.json sorts brutalmoose playlists into the intended aisles', (
 test('buildCatalog only lists aisles that have tapes', () => {
   const { catalog } = buildCatalog({ config, channel, videos: [v('aaaaaaaaaaa', 'Aerobic Blast')] });
   assert.deepEqual(catalog.aisles.map((a) => a.id), ['fitness-and-workout']);
+});
+
+// ---------------------------------------------------------------- areas (Streams…)
+
+test('buildCatalog with aislesBy "year": one aisle per year, newest first', () => {
+  const cfg = { store: config.store, youtube: { aislesBy: 'year', defaultAisle: 'Undated' }, aisles: config.aisles };
+  const videos = [
+    v('aaaaaaaaaaa', 'Myst IV [Part One]', { publishedAt: '2025-03-02T00:00:00Z' }),
+    v('bbbbbbbbbbb', 'Horror Night Stream', { publishedAt: '2026-11-12T00:00:00Z' }), // keywords don't apply
+    v('ccccccccccc', 'Myst IV [Part Two]', { publishedAt: '2025-03-04T00:00:00Z' }),
+    v('ddddddddddd', 'Mystery date', { publishedAt: '' }),
+    v('eeeeeeeeeee', 'Pinned', { publishedAt: '2024-01-01T00:00:00Z' }),
+  ];
+  const memberships = new Map([['aaaaaaaaaaa', [{ title: 'Myst IV', size: 2 }]]]); // playlists don't either
+  const { catalog } = buildCatalog({ config: cfg, overrides: { eeeeeeeeeee: { aisle: 'Favourites' } }, channel, videos, memberships });
+  assert.deepEqual(catalog.aisles.map((a) => a.name), ['2026', '2025', 'Favourites', 'Undated']);
+  assert.deepEqual(catalog.videos.map((x) => x.youtubeId), ['bbbbbbbbbbb', 'ccccccccccc', 'aaaaaaaaaaa', 'eeeeeeeeeee', 'ddddddddddd']);
+  assert.equal(catalog.videos.find((x) => x.youtubeId === 'eeeeeeeeeee').aisle, 'favourites'); // an override still wins
+  assert.deepEqual(validateCatalog(catalog).errors, []);
+});
+
+test('catalogTargets: the sales floor plus one catalog per area', () => {
+  const targets = catalogTargets({
+    store: { name: 'TEST' },
+    youtube: { channel: '@main' },
+    areas: { streams: { name: 'Streams', out: 'public/streams.json', youtube: { channel: '@vods', aislesBy: 'year' } }, extras: {} },
+  });
+  assert.deepEqual(targets.map((t) => [t.id, t.out]), [['main', 'public/catalog.json'], ['streams', 'public/streams.json'], ['extras', 'public/extras.json']]);
+  assert.equal(targets[1].config.youtube.channel, '@vods');
+  assert.deepEqual(targets[1].config.store, { name: 'TEST' }); // shares the store's branding
+  assert.deepEqual(targets[1].config.aisles, []); // not the sales floor's keyword aisles
+});
+
+test('store.config.json stocks Streams from moose2, shelved by year', () => {
+  const real = JSON.parse(readFileSync(new URL('../../store.config.json', import.meta.url), 'utf8'));
+  const streams = catalogTargets(real).find((t) => t.id === 'streams');
+  assert.ok(streams, 'a streams area is configured');
+  assert.equal(streams.out, 'public/streams.json');
+  assert.deepEqual(parseChannel(streams.config.youtube.channel), { url: 'https://www.youtube.com/moose2' });
+  assert.equal(streams.config.youtube.aislesBy, 'year');
 });

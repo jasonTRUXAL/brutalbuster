@@ -31,5 +31,17 @@
     { "name": "Home Video", "color": "#3ddc84", "match": ["home video", "home movie", "camcorder", "found tape", "found footage"] },
     { "name": "Music & Concerts", "color": "#7c4dff", "match": ["concert", "music video", "live performance"] },
     { "name": "Holiday", "color": "#ff1744", "match": ["christmas", "halloween", "thanksgiving", "holiday", "easter"] }
-  ]
+  ],
+  "areas": {
+    "streams": {
+      "name": "Streams",
+      "out": "public/streams.json",
+      "youtube": {
+        "channel": "https://www.youtube.com/moose2",
+        "aislesBy": "year",
+        "defaultAisle": "Undated",
+        "skipShorts": true
+      }
+    }
+  }
 }

@@ -1,5 +1,7 @@
 # Catalog format (`public/catalog.json`)
 
+Each area of the store has its own file in this format: `public/catalog.json` for the sales floor (the main channel), and one file per entry under `areas` in `store.config.json` (`public/streams.json` for Streams, from moose2). This page uses `catalog.json` for all of them.
+
 `catalog.json` is the hand-off between the two halves of the project:
 
 - the **content pipeline** (`npm run sync`, `scripts/`) writes it from the YouTube channel
@@ -10,7 +12,7 @@ As long as both sides stick to this format, either one can change without breaki
 Check any file against the rules with:
 
 ```bash
-npm run check:catalog                 # public/catalog.json
+npm run check:catalog                 # every area's file
 npm run check:catalog -- some/file.json
 ```
 

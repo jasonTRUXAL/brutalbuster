@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "source": "youtube",
+  "generatedAt": "2026-11-22T01:36:32.703Z",
+  "store": {
+    "name": "BRUTALBUSTER",
+    "subtitle": "VIDEO",
+    "tagline": "Be Kind, Please Rewind",
+    "channelUrl": "https://www.youtube.com/channel/UCd6Tp3QcHhagsbSpyxmlzpg",
+    "channelName": "moose2"
+  },
+  "aisles": [
+    {
+      "id": "2026",
+      "name": "2026"
+    }
+  ],
+  "videos": [
+    {
+      "id": "N4X5wflMbjg",
+      "youtubeId": "N4X5wflMbjg",
+      "title": "Grand Theft Auto",
+      "description": "donation link: https://streamlabs.com/brutalmoose/v2\njoin the chat: https://www.twitch.tv/brutalmoose",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-11-21T01:52:08+00:00"
+    },
+    {
+      "id": "EL5DmA2nLH8",
+      "youtubeId": "EL5DmA2nLH8",
+      "title": "Grand Theft Auto: San Andreas: The Definitive Edition: Part One",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:29 hello!\n9:08 Grand Theft Auto: San Andreas\n4:51:03 GTA Personality Quiz",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-11-19T02:58:34+00:00"
+    },
+    {
+      "id": "Gbx05D_n5K8",
+      "youtubeId": "Gbx05D_n5K8",
+      "title": "Myst IV: Revelation (2004)  [Finale]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:28 hello!\n9:03 Myst IV: Revelation",
+      "aisle": "2026",
+      "year": 2004,
+      "duration": "",
+      "publishedAt": "2026-11-17T02:18:42+00:00"
+    },
+    {
+      "id": "rbFVsy9m08o",
+      "youtubeId": "rbFVsy9m08o",
+      "title": "Myst IV: Revelation (2004) [Part Three]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:24 hello! (quiet)\n6:27 hello! (loud)\n11:45 Myst IV: Revelation",
+      "aisle": "2026",
+      "year": 2004,
+      "duration": "",
+      "publishedAt": "2026-11-16T14:06:52+00:00"
+    },
+    {
+      "id": "R6sCfvM-VLI",
+      "youtubeId": "R6sCfvM-VLI",
+      "title": "Myst IV: Revelation (2004) [Part Two]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:29 Hello\n14:14 Myst IV: Revelation",
+      "aisle": "2026",
+      "year": 2004,
+      "duration": "",
+      "publishedAt": "2026-11-14T03:31:05+00:00"
+    },
+    {
+      "id": "9e3fh6EiHZQ",
+      "youtubeId": "9e3fh6EiHZQ",
+      "title": "Myst IV: Revelation (2004) [Part One]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:25 hello!\n13:06 Myst 1, 2, 3 Story Recap\n22:15 Myst IV: Revelation\n47:32 Installing a patch\n55:07 Myst IV: Revelation",
+      "aisle": "2026",
+      "year": 2004,
+      "duration": "",
+      "publishedAt": "2026-11-12T03:23:40+00:00"
+    },
+    {
+      "id": "iAHl1wBxlb4",
+      "youtubeId": "iAHl1wBxlb4",
+      "title": "King's Quest 1 (1990) | Full Playthrough",
+      "description": "This is my playthrough of the 1990 edition of King's Quest 1!\nThis was recorded over the span of 2 days. You can watch the original broadcasts here: https://www.youtube.com/playlist?list=PLWrR6VQ_cOhM",
+      "aisle": "2026",
+      "year": 1990,
+      "duration": "",
+      "publishedAt": "2026-11-08T19:59:11+00:00"
+    },
+    {
+      "id": "MRhHPDJh3WM",
+      "youtubeId": "MRhHPDJh3WM",
+      "title": "Space Quest 1 (1986) | Full Playthrough",
+      "description": "Here's my playthrough of Space Quest 1! I played this one immediately after beating the Space Quest 1 VGA remake, so I kind of knew what I was doing ahead of time.\nThis was recorded over the course of two days, and you can watch the original broadcasts here: https://www.youtube.com/playlist?list=PLXtjRe3FdmOY",
+      "aisle": "2026",
+      "year": 1986,
+      "duration": "",
+      "publishedAt": "2026-11-08T19:37:24+00:00"
+    },
+    {
+      "id": "hkqdYfIgVqI",
+      "youtubeId": "hkqdYfIgVqI",
+      "title": "Dark Arcana: The Carnival (2012) | Full Playthrough + Bonus Story",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:30 hello!\n14:05 Dark Arcana: The Carnival\n3:15:51 Dark Arcana: The Carnival Bonus Story",
+      "aisle": "2026",
+      "year": 2012,
+      "duration": "",
+      "publishedAt": "2026-11-07T01:23:06+00:00"
+    },
+    {
+      "id": "2liJ4Z9scEA",
+      "youtubeId": "2liJ4Z9scEA",
+      "title": "King's Quest III [Finale]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:21 hello! / story recap\n16:37 King's Quest III\n3:45:34 Buzzfeed Quiz: Rom-Com Fashion Quiz",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-11-05T02:36:39+00:00"
+    },
+    {
+      "id": "W3JG4TD_Wzw",
+      "youtubeId": "W3JG4TD_Wzw",
+      "title": "King's Quest III [Part One]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:42 hello!\n16:27 King's Quest III\n4:41:50 the Wind Down: personality quizzes",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-11-03T04:03:10+00:00"
+    },
+    {
+      "id": "B6nqQKSfpbU",
+      "youtubeId": "B6nqQKSfpbU",
+      "title": "Harvester [Finale]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:37 hello! / story recap\n18:53 Harvester\n4:21:42 Quiz Time",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-10-31T02:01:58+00:00"
+    },
+    {
+      "id": "Nin73__cv8M",
+      "youtubeId": "Nin73__cv8M",
+      "title": "Harvester [Part Two]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:25 hello! / story recap\n19:30 Harvester\n3:34:31 Intermission\n3:38:39 Harvester\n4:39:48 Wind Down\n4:44:10 What pie are you?",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-10-29T01:56:56+00:00"
+    },
+    {
+      "id": "occRX3k3Iko",
+      "youtubeId": "occRX3k3Iko",
+      "title": "Harvester [Part One]",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:24 hello!\n13:45 Harvester\n4:45:59 what halloween candy are you?",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-10-27T02:43:30+00:00"
+    },
+    {
+      "id": "FHFg8SVOe7g",
+      "youtubeId": "FHFg8SVOe7g",
+      "title": "Play or Pass: Windows XP Games",
+      "description": "twitch: https://www.twitch.tv/brutalmoose\nsuggestion box: https://brutalmoose.com/box\n\n▼Stream Guide▼\n0:00 StartUp\n5:42 hello!\n21:20 Who Killed Brett Penance?\n1:24:55 Scooby-Doo! Case File #1: The Glowing Bug Man\n2:04:58 The Dark Eye\n2:42:44 Sabrina The Animated Series: Magical Adventure\n3:09:50 Shivers\n4:53:55 Cozy Personality Quiz",
+      "aisle": "2026",
+      "year": null,
+      "duration": "",
+      "publishedAt": "2026-10-24T02:42:10+00:00"
+    }
+  ]
+}

@@ -6,8 +6,8 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 |---|---|---|---|
 | 1 | **The store** (main sales floor) | brutalmoose main channel ([youtube.com/brutalmoose](https://www.youtube.com/brutalmoose)) | ✅ Live: https://jasontruxal.github.io/brutalbuster/ |
 | 2 | **The lounge** (the theater room) | Plays whatever tape you pick | Room and props built (see "New rooms"); playing videos comes later |
-| 3 | **Streams** (the streaming archive) | His streaming-archive channel (link needed) | Room built with empty "Coming Soon" shelves |
-| 4 | **Extras** | To decide | Room built with empty "Coming Soon" shelves |
+| 3 | **Streams** (the streaming archive) | [moose2](https://www.youtube.com/moose2), about 744 videos | Room built; its catalog (`public/streams.json`) is restocked daily; shelves still empty |
+| 4 | **Extras** | To decide (the user is compiling the list) | Room built with empty "Coming Soon" shelves and boxes, kept as is for now |
 | 5 | **VHS backup vault** | His VHS backup channel, possibly plus other websites for the full list | Later (it could live in Extras) |
 
 **Proof-of-concept scope:** the store plus areas 2 and 3.
@@ -24,8 +24,8 @@ What it cost the sales floor: the hallway took the front 2 bays of left-wall she
 The work is split into passes, each finished and approved before the next:
 
 1. **Rooms and props** ✅ (this branch). Walls, floors, lighting and furniture, with empty "Coming Soon" shelves. No new videos. The lounge screen runs a "coming attractions" slideshow of box art.
-2. **Content pipeline.** `npm run sync` writes one catalog per area (for example `public/catalogs/main.json`, `streams.json`, `extras.json`, each following [the catalog format](catalog-format.md)). Needs the Streams channel link and a decision on what Extras holds.
-3. **Stock the new shelves.** Streams shelved by date (stream VODs are long, so dates suit them better than genre aisles). Extras shelved to suit its contents. Picking up and watching works the same as on the sales floor.
+2. **Content pipeline** ✅ (branch `feature/streams-catalog`). `store.config.json` → `areas` lists the extra catalogs. `npm run sync` writes `public/catalog.json` (sales floor) and `public/streams.json` (Streams, from moose2), both in [the catalog format](catalog-format.md). Streams is shelved by year (`aislesBy: "year"`): one aisle per year, newest first. The committed `streams.json` is the 15 newest from the RSS feed; the deploy restocks it with the full channel.
+3. **Stock the Streams shelves.** The Streams room reads `streams.json`, sizes its shelving to it, and shelves year by year. Picking up and watching works the same as on the sales floor. Extras waits for its list.
 4. **A working projector.** Sit on a couch and the tape plays on the lounge screen. `plan.lounge.screen` is the screen's position and size, for laying a YouTube player over it (see "Theater room" below). `plan.lounge.sofas` are the seats.
 
 ## Prize corner (built)
@@ -59,9 +59,8 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 
 ### 3. Streaming archive (Streams)
 - Built as the back two-thirds of the wing off the sales floor (see "New rooms"), with its own purple look and empty shelving for now.
-- **Needs multiple catalogs:** the config lists several sources, `npm run sync` writes one catalog per area (for example `public/catalogs/main.json` and `archive.json`, each following [the catalog format](catalog-format.md)), the layout solver runs once per area, and a door switches areas.
-- Stream VODs are long (often hours), so shelving by date or series may suit them better than genre aisles.
-- **Waiting on:** the channel link.
+- **Source:** [moose2](https://www.youtube.com/moose2) (channel id `UCd6Tp3QcHhagsbSpyxmlzpg`), about 744 videos as of 2026-11-21. They're mostly stream recordings: full playthroughs and multi-part games ("Myst IV [Part One]" … "[Finale]"), plus shows like Play or Pass and Wiingo. Most games have their own playlist.
+- **Shelving:** by year (decided 2026-11-21). Parts of a game were streamed back to back, so they still sit together. One section per game was considered and set aside: 30+ games plus one-offs would need about 3 times the shelf space and dozens more signs.
 
 ### 4. VHS backup vault
 - The full list may live partly outside YouTube. Plan: one "source adapter" per website in `scripts/lib/`, each producing the same catalog format, so the 3D store never has to care where a tape came from.
@@ -72,3 +71,4 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 - **2026-10-06:** The main store shelves the **entire** main channel, not a subset. "My response." stays on the shelves. Playlist notes and the alternative we considered are in [channel-notes.md](channel-notes.md).
 - **2026-11-04:** PS1 Mode applies to everything except the video thumbnails, as asked. The whole box front counts as "thumbnail" so titles stay readable. The choice is per browser (remembered), and off by default.
 - **2026-11-21:** New rooms. A hallway opposite the counter leads to a wing that's a lounge (front third: couches, projector) and Streams (back two-thirds). A door in the back right-hand corner leads to Extras. Built in passes: rooms and props first, then content, then the working projector.
+- **2026-11-21:** Streams is stocked from moose2 and shelved by year. Extras keeps its empty shelves and boxes until the user has compiled what goes in it.

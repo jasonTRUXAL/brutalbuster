@@ -29,6 +29,8 @@ Open http://localhost:5173. The repo ships with a **sample catalog** of 71 made-
 
    This rewrites `public/catalog.json` with every public upload on the channel: title, description, runtime, publish date and thumbnail. Shorts and live streams are skipped. The new catalog is checked against the [catalog format](docs/catalog-format.md) before it's written; if it fails, the old one is kept.
 
+   It also restocks the other areas listed under `areas` in `store.config.json`, each from its own channel into its own file. Right now that's **Streams**, from [moose2](https://www.youtube.com/moose2), into `public/streams.json`, shelved by the year each stream went up. `npm run sync -- --area streams` restocks just that one. If one area fails, its old file is kept and the others still update.
+
 Without an API key the sync still works, but it falls back to the channel's public RSS feed, which only lists the **15 newest** uploads. The key is used at build time only and never reaches the browser.
 
 To preview a catalog before replacing the live one, write it somewhere else and load it with `?catalog=`:

@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// Stocks the store: pulls every upload from a YouTube channel and writes public/catalog.json.
+// Stocks the store: pulls every upload from each YouTube channel in store.config.json
+// and writes one catalog per area: public/catalog.json for the sales floor, plus one per
+// entry under `areas` (Streams → public/streams.json).
 //
-//   npm run sync                         # uses store.config.json + YOUTUBE_API_KEY from .env
-//   npm run sync -- --channel @SomeHandle
+//   npm run sync                         # every area; uses YOUTUBE_API_KEY from .env
+//   npm run sync -- --area streams       # just one area ("main" is the sales floor)
+//   npm run sync -- --channel @SomeHandle   (sales floor only, like --out)
 //   npm run sync -- --out some/other.json
 //   npm run sync -- --rss                # force the no-key RSS path
 //
@@ -18,7 +21,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCatalog } from '../src/catalog-schema.js';
 import { isoDuration, parseChannel, extractChannelId, parseRssFeed } from './lib/youtube-parse.mjs';
-import { buildCatalog } from './lib/build-catalog.mjs';
+import { buildCatalog, catalogTargets } from './lib/build-catalog.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'https://www.googleapis.com/youtube/v3';
@@ -67,7 +70,7 @@ async function scrapeChannelId(url) {
 
 // ------------------------------------------------------------------ API path
 
-async function fromApi(key, channel) {
+async function fromApi(key, channel, { playlists: readPlaylists = true } = {}) {
   const q = (path, params) => `${API}/${path}?${new URLSearchParams({ ...params, key })}`;
   const channelBy = async (params) => (await getJson(q('channels', { part: 'snippet,contentDetails', ...params }))).items?.[0];
   let ch;
@@ -112,14 +115,15 @@ async function fromApi(key, channel) {
   }
   console.log('');
 
-  // playlists → aisle hints
+  // playlists → aisle hints (skipped when they don't decide the aisle, to save quota)
   const playlists = [];
   let pageToken = '';
-  do {
+  while (readPlaylists) {
     const page = await getJson(q('playlists', { part: 'snippet', channelId: ch.id, maxResults: 50, ...(pageToken && { pageToken }) }));
     playlists.push(...(page.items || []));
     pageToken = page.nextPageToken || '';
-  } while (pageToken);
+    if (!pageToken) break;
+  }
   const memberships = new Map();
   for (const pl of playlists) {
     const members = await playlistVideoIds(pl.id);
@@ -146,25 +150,23 @@ async function fromRss(channel) {
 
 // ------------------------------------------------------------------ main
 
-async function main() {
-  loadEnv();
-  const opts = args();
-  const config = readJson(resolve(ROOT, 'store.config.json'), {});
-  const overrides = readJson(resolve(ROOT, 'catalog.overrides.json'), {});
-  const outPath = resolve(ROOT, opts.out || 'public/catalog.json');
+/** Restock one area: fetch its channel, sort it onto shelves, check it, write it. */
+async function syncArea(area, opts, overrides) {
+  const isMain = area.id === 'main';
+  const { config } = area;
+  const outPath = resolve(ROOT, (isMain && opts.out) || area.out);
+  console.log(`\n▶ ${area.name}`);
 
-  const input = opts.channel || config.youtube?.channel;
+  const input = (isMain && opts.channel) || config.youtube?.channel;
   const channel = parseChannel(input);
   if (!channel) {
-    console.error(input ? `✖ "${input}" doesn't look like a YouTube channel.` : '✖ No channel set.');
-    console.error('  Put the channel (e.g. "@TheirHandle" or its URL) in store.config.json → youtube.channel,');
-    console.error('  or run:  npm run sync -- --channel @TheirHandle');
-    process.exit(1);
+    const where = isMain ? 'youtube.channel' : `areas.${area.id}.youtube.channel`;
+    throw new Error(`${input ? `"${input}" doesn't look like a YouTube channel` : 'No channel set'}. Put the channel (e.g. "@TheirHandle" or its URL) in store.config.json → ${where}.`);
   }
 
   const key = process.env.YOUTUBE_API_KEY;
   let data;
-  if (key && !opts.rss) data = await fromApi(key, channel);
+  if (key && !opts.rss) data = await fromApi(key, channel, { playlists: config.youtube?.aislesBy !== 'year' });
   else {
     console.warn('⚠ No YOUTUBE_API_KEY found — using the public RSS feed, which only lists the 15 newest uploads.');
     console.warn('  Add a key to .env to shelve the whole channel (see README).');
@@ -184,6 +186,28 @@ async function main() {
   console.log(`✔ Shelved ${videos.length} tapes across ${aisles.length} aisles → ${outPath}`);
   if (skipped) console.log(`  (skipped ${skipped}: hidden, Shorts or live streams)`);
   for (const a of aisles) console.log(`   • ${a.name}: ${videos.filter((v) => v.aisle === a.id).length}`);
+}
+
+async function main() {
+  loadEnv();
+  const opts = args();
+  const config = readJson(resolve(ROOT, 'store.config.json'), {});
+  const overrides = readJson(resolve(ROOT, 'catalog.overrides.json'), {});
+  const areas = catalogTargets(config).filter((a) => !opts.area || a.id === opts.area);
+  if (!areas.length) throw new Error(`No area "${opts.area}". Areas: ${catalogTargets(config).map((a) => a.id).join(', ')}.`);
+
+  // One area failing (YouTube hiccup, bad config) leaves its old catalog in place and
+  // doesn't stop the others; the run still ends in an error so it gets noticed.
+  let failed = 0;
+  for (const area of areas) {
+    try {
+      await syncArea(area, opts, overrides);
+    } catch (err) {
+      failed++;
+      console.error(`✖ ${area.name}: ${err.message}`);
+    }
+  }
+  if (failed) process.exit(1);
 }
 
 main().catch((err) => {

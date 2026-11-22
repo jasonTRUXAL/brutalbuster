@@ -35,6 +35,7 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
   const ruleFor = (text) => aisleRules.find((a) => a.patterns.some((p) => p.test(text)))?.id;
   const cleanups = (yt.titleCleanup || []).map((r) => new RegExp(r, 'gi'));
   const defaultAisle = yt.defaultAisle || 'Rare Finds';
+  const byYear = yt.aislesBy === 'year';
   const ignored = [...CATCH_ALL_PLAYLISTS, ...(yt.ignorePlaylists || []).map((n) => new RegExp(`^${escapeRe(n)}$`, 'i'))];
   // "Game Reviews | brutalmoose" -> "Game Reviews"; same for "Some Video - brutalmoose"
   const channelTag = channel?.title ? new RegExp(`\\s*[|:–—-]\\s*${escapeRe(channel.title)}\\s*$`, 'i') : null;
@@ -55,15 +56,21 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
 
     // Aisle priority: manual override → the channel's own playlists (mapped onto a
     // configured aisle when the playlist name matches one) → keywords → default.
-    const lists = (memberships.get(v.youtubeId) || [])
-      .filter((l) => !ignored.some((re) => re.test(l.title)))
-      .map((l) => ({ ...l, title: untag(l.title) }))
-      .sort((a, b) => a.size - b.size);
+    // With `aislesBy: "year"` it's override → the year it went up → default instead.
     let aisle = o.aisle ? ensureAisle(o.aisle) : null;
-    if (!aisle && yt.aislesFromPlaylists !== false && lists.length) {
-      aisle = lists.map((l) => ruleFor(l.title)).find(Boolean) || ensureAisle(lists[0].title);
+    if (byYear) {
+      const year = /^\d{4}/.exec(v.publishedAt || '')?.[0];
+      if (!aisle && year) aisle = ensureAisle(year);
+    } else {
+      const lists = (memberships.get(v.youtubeId) || [])
+        .filter((l) => !ignored.some((re) => re.test(l.title)))
+        .map((l) => ({ ...l, title: untag(l.title) }))
+        .sort((a, b) => a.size - b.size);
+      if (!aisle && yt.aislesFromPlaylists !== false && lists.length) {
+        aisle = lists.map((l) => ruleFor(l.title)).find(Boolean) || ensureAisle(lists[0].title);
+      }
+      if (!aisle) aisle = ruleFor(`${title}\n${(v.tags || []).join(' ')}`);
     }
-    if (!aisle) aisle = ruleFor(`${title}\n${(v.tags || []).join(' ')}`);
     if (!aisle) aisle = ensureAisle(defaultAisle);
 
     // "Dead Grandma Tapes | Mystery Tapes" on the Mystery Tapes shelf → "Dead Grandma Tapes"
@@ -82,6 +89,15 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
     });
   }
 
+  let shelved = [...aisles.values()].filter((a) => videos.some((v) => v.aisle === a.id));
+  if (byYear) {
+    // newest year first, then any overridden aisles, then the default (undated) one;
+    // newest video first within each
+    const yearOf = (a) => (/^\d{4}$/.test(a.name) ? Number(a.name) : a.id === slug(defaultAisle) ? -2 : -1);
+    shelved = shelved.sort((a, b) => yearOf(b) - yearOf(a));
+    videos.sort((a, b) => String(b.publishedAt).localeCompare(String(a.publishedAt)));
+  }
+
   const catalog = {
     schemaVersion: SCHEMA_VERSION,
     source: 'youtube',
@@ -91,8 +107,26 @@ export function buildCatalog({ config = {}, overrides = {}, channel, videos: raw
       channelUrl: channel.url,
       channelName: channel.title,
     },
-    aisles: [...aisles.values()].filter((a) => videos.some((v) => v.aisle === a.id)),
+    aisles: shelved,
     videos,
   };
   return { catalog, skipped };
+}
+
+/**
+ * Every catalog to restock: the sales floor (store.config.json's top-level `youtube`
+ * and `aisles`, written to public/catalog.json), plus one per entry under `areas` (for
+ * example Streams → public/streams.json). An area has its own `youtube` settings (and
+ * optionally `aisles`) and shares the store's branding.
+ * @returns {Array<{ id: string, name: string, out: string, config: object }>}
+ */
+export function catalogTargets(config = {}) {
+  const main = { id: 'main', name: 'Sales floor', out: 'public/catalog.json', config };
+  const areas = Object.entries(config.areas || {}).map(([id, a]) => ({
+    id,
+    name: a.name || id,
+    out: a.out || `public/${id}.json`,
+    config: { store: config.store, youtube: a.youtube || {}, aisles: a.aisles || [] },
+  }));
+  return [main, ...areas];
 }
