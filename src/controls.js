@@ -36,7 +36,7 @@ export class PlayerControls {
       this.onLockChange(this.locked);
     });
     document.addEventListener('pointerlockerror', () => {
-      if (!this._promiseApi) this._lockFailed();
+      if (!this._promiseApi) this._lockFailed(this._quiet);
     });
     this.dom.addEventListener('mousedown', () => (this.dragDist = 0));
     document.addEventListener('mousemove', (e) => {
@@ -57,8 +57,13 @@ export class PlayerControls {
     this._apply();
   }
 
-  lock() {
+  /**
+   * Capture the mouse. `quiet`: a try the browser may well refuse (no click to go with
+   * it), which doesn't count toward giving up on pointer lock.
+   */
+  lock({ quiet = false } = {}) {
     if (this.isTouch || this.dragLook) return;
+    this._quiet = quiet;
     if (!this.dom.requestPointerLock) {
       this.failures = 99;
       return this._lockFailed();
@@ -72,16 +77,17 @@ export class PlayerControls {
     this._promiseApi = Boolean(p && p.catch);
     if (!this._promiseApi) return;
     p.catch((err) => {
-      if (err?.name !== 'NotSupportedError') return this._lockFailed();
+      if (err?.name !== 'NotSupportedError') return this._lockFailed(quiet);
       // raw mouse input isn't available everywhere — retry without it
       const p2 = this.dom.requestPointerLock();
-      p2?.catch?.(() => this._lockFailed());
+      p2?.catch?.(() => this._lockFailed(quiet));
     });
   }
 
   /** A single failure is usually the browser's post-Esc cooldown; twice in a row means
    *  pointer lock isn't allowed here (e.g. inside an iframe), so fall back to drag-to-look. */
-  _lockFailed() {
+  _lockFailed(quiet = false) {
+    if (quiet) return this.onLockChange(false, true);
     this.failures++;
     if (this.failures >= 2) this.dragLook = true;
     this.onLockChange(false, true);

@@ -252,7 +252,18 @@ async function main() {
     inspector.release();
     theater.insert(inVcr.video);
     setTarget(null);
+    holdTheMouse();
   }
+
+  // Loading the YouTube player can take the browser's focus, and with it the mouse (a
+  // "Click to look around" nobody asked for). The player can't take focus (theater.js),
+  // but just in case: if the mouse is let go of while walking, just after a tape goes in
+  // or its picture starts, ask for it back once. If the browser says no, it's 'paused'.
+  let relockUntil = 0;
+  const holdTheMouse = () => {
+    if (!isTouch && !controls.dragLook) relockUntil = performance.now() + 4000;
+  };
+  theater.onPicture = holdTheMouse;
   // at the end of the tape, it's put back on its shelf
   theater.onEnded = () => {
     if (inVcr) tapes.show(inVcr.slot);
@@ -314,7 +325,10 @@ async function main() {
   controls.onLockChange = (locked, failed) => {
     document.body.classList.toggle('drag-look', controls.dragLook);
     if (locked && (mode === 'paused' || mode === 'splash')) setMode('walk');
-    else if (!locked && mode === 'walk' && !controls.dragLook) setMode('paused');
+    else if (!locked && !failed && mode === 'walk' && performance.now() < relockUntil) {
+      relockUntil = 0;
+      controls.lock({ quiet: true });
+    } else if (!locked && mode === 'walk' && !controls.dragLook) setMode('paused');
     else if (failed && controls.dragLook && mode === 'paused') setMode('walk');
   };
   controls.onTap = (x, y) => {

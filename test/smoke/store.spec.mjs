@@ -377,17 +377,31 @@ test('Grab a tape, carry it to the lounge VCR, and it plays on the big screen', 
   expect(await stand('couches')).toBeNull();
   expect(await stand('vcr')).toBe('Insert tape');
 
-  // put it in: the VCR's blue screen, then the picture, with the player behind the canvas
+  // put it in: the VCR's intro (black, static while it tracks, the tape's details), then
+  // the picture, with the player behind the canvas
   await page.keyboard.press('KeyE');
   await advance(page, 0.05); // (the player goes into the page with the next frame)
+  const screen = () =>
+    page.evaluate(() => {
+      const bb = window.__bb;
+      return { mode: bb.store.annex.lounge.projection.mode, vcr: bb.store.annex.lounge.vcr.text, player: document.querySelector('#theater').style.visibility };
+    });
   const playing = await page.evaluate(() => {
     const bb = window.__bb;
     return { inVcr: bb.inVcr?.video.youtubeId, carried: bb.carried, screen: bb.store.annex.lounge.projection.mode };
   });
-  expect(playing).toEqual({ inVcr: linked, carried: null, screen: 'loading' });
-  await expect(page.locator('#theater iframe')).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}\\?`));
-  await advance(page, 2);
-  expect(await page.evaluate(() => window.__bb.store.annex.lounge.projection.mode)).toBe('video');
+  expect(playing).toEqual({ inVcr: linked, carried: null, screen: 'intro' });
+  const player = page.locator('#theater iframe');
+  await expect(player).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}\\?autoplay=0`));
+  expect(await player.evaluate((f) => f.inert), "the player can't take the focus (and the mouse with it)").toBe(true);
+  await advance(page, 5);
+  expect(await screen(), 'five seconds in: still the intro, the player hidden').toEqual({ mode: 'intro', vcr: 'LOAD', player: 'hidden' });
+  // (YouTube is blocked here, so the player never answers: it's reloaded playing, and
+  // shown after a wait)
+  await advance(page, 2.5);
+  expect((await screen()).mode).toBe('wait');
+  await advance(page, 3.5);
+  expect(await screen()).toEqual({ mode: 'video', vcr: expect.stringMatching(/^0:00:0\d$/), player: '' }); // (the counter's running)
   expect(await page.evaluate(() => document.querySelector('#tooltip').hidden), 'empty-handed at the VCR, nothing is said').toBe(true);
   await page.evaluate(() => {
     const L = window.__bb.plan.lounge;

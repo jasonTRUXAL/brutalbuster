@@ -30,7 +30,7 @@ The work is split into passes, each finished and approved before the next:
    - The held-tape panel's **Watch now** (the pop-up TV) is gone. Its buttons are now **Grab** and **View on YouTube** (plus Flip and Put back).
    - **Grab** and you hold the tape: it's shown facing you, centred in the lower third of the view, and goes where you go. Grabbing another sends the first back to its shelf.
    - A VCR sits in a media cabinet under the screen. Nothing points you to it: you find it by exploring. Get near it holding a tape and it says **Insert tape**; get near it empty-handed and it says nothing.
-   - Put the tape in: the screen goes VCR-blue with PLAY, then the video plays on the big screen (a real YouTube player lined up behind the see-through screen, so walls and furniture still hide it). It plays on as you walk round, quieter further off. A new tape sends the old one back to its shelf, as does the end of the tape.
+   - Put the tape in and it starts like an old VCR, in about seven seconds (user's follow-up): a moment of black, the blue screen full of static while it auto-tracks (like the counter TV), then the tape's title, upload date and length on their own lines, and a blip into the video, which starts from the beginning then. The video is a real YouTube player lined up behind the see-through screen, so walls and furniture still hide it. It plays on as you walk round, quieter further off. A new tape sends the old one back to its shelf, as does the end of the tape.
    - With no tape in, a made-up VHS logo bounces round the screen like an idle DVD player's, changing colour at each bounce. It replaced the box-art slideshow.
    - You can sit on either couch (three seats each), but sitting does nothing else.
 

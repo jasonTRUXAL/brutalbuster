@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { DIM, BRAND } from './config.js';
 import { FONT } from './fonts.js';
 import { toTexture, panelTexture } from './textures.js';
-import { makeCanvas, rng } from './util.js';
+import { makeCanvas, rng, hash } from './util.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Batcher, tiledPlane } from './fixtures.js';
 
@@ -214,7 +214,7 @@ function buildVcr(B, m, mat, v, group) {
 const DW = 192;
 const DH = 48;
 
-/** The VCR's glowing display: a blinking 12:00 while it's empty, PLAY and a counter while it plays. */
+/** The VCR's glowing display: a blinking 12:00 while it's empty, LOAD while a tape spins up, then ▶ and a counter. */
 class VcrDisplay {
   constructor(group, x, y, z) {
     this.canvas = makeCanvas(DW, DH);
@@ -226,15 +226,15 @@ class VcrDisplay {
     mesh.position.set(x, y, z);
     mesh.rotation.y = Math.PI / 2;
     group.add(mesh);
-    this.playing = false;
+    this.state = 'idle';
     this.time = 0;
     this.text = null;
     this._paint();
   }
 
-  /** `true` once a tape is playing; the counter starts from zero. */
-  setPlaying(on) {
-    this.playing = on;
+  /** 'idle' (no tape), 'load' (a tape going in) or 'play' (the counter starts from zero). */
+  setState(state) {
+    this.state = state;
     this.time = 0;
     this._paint();
   }
@@ -246,9 +246,11 @@ class VcrDisplay {
 
   _paint() {
     let text;
-    if (this.playing) {
+    if (this.state === 'play') {
       const t = Math.floor(this.time);
       text = `${Math.floor(t / 3600)}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    } else if (this.state === 'load') {
+      text = 'LOAD';
     } else {
       text = this.time % 1 < 0.5 ? '12:00' : ''; // nobody ever set the clock
     }
@@ -262,7 +264,7 @@ class VcrDisplay {
     ctx.shadowBlur = 8;
     ctx.font = `44px ${FONT.vt}`;
     ctx.textBaseline = 'middle';
-    if (this.playing) {
+    if (this.state === 'play') {
       playTriangle(ctx, 14, DH / 2, 22);
       ctx.textAlign = 'right';
       ctx.fillText(text, DW - 10, DH / 2 + 2);
@@ -319,11 +321,20 @@ function projectorBeam(lens, s) {
 
 const LOGO_COLORS = ['#ff2e88', '#2ee6ff', '#ffc61a', '#7dff5a', '#ff7a1a', '#a98bff', '#ffffff'];
 
+/** How a tape starts: black, then blue with static while it auto-tracks, then its details. */
+export const INTRO = { black: 0.8, tracked: 3.9, details: 4.1, length: 7.0 };
+const BLIP = 0.09; // the flash between the tape's details and the picture
+const OPEN = 0.15; // the picture opening out from a line
+
 /**
  * What the projector shows:
  * - 'logo' (no tape in): a made-up "VHS" logo drifting round the screen, changing colour
  *   each time it bounces off an edge;
- * - 'loading': the VCR's blue screen with PLAY in the corner, while the tape starts;
+ * - 'intro' (a tape going in): INTRO's sequence, like an old VCR finding the picture:
+ *   black, then the blue screen full of static while it auto-tracks, then the tape's
+ *   title, date and length on it (startIntro);
+ * - 'wait': black, while the video itself starts;
+ * - 'blip': a flash, then 'video' opens out from a line across the middle;
  * - 'video': clear. The canvas is see-through there, and theater.js puts the YouTube
  *   player behind it, so anything standing in front of the screen still hides the video.
  */
@@ -331,9 +342,13 @@ export class ProjectorScreen {
   constructor(s) {
     this.s = s;
     this.group = new THREE.Group();
+    this.intro = new TapeIntro();
+    const introMat = new THREE.MeshBasicMaterial({ map: this.intro.texture, toneMapped: false });
     this.materials = {
       logo: new THREE.MeshBasicMaterial({ color: 0x0b0b12, toneMapped: false }),
-      loading: new THREE.MeshBasicMaterial({ map: blueScreenTexture(), toneMapped: false }),
+      intro: introMat,
+      blip: introMat,
+      wait: new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false }),
       // writes "nothing here" (alpha 0) into the canvas, so the page behind shows through
       video: new THREE.ShaderMaterial({
         vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -362,18 +377,37 @@ export class ProjectorScreen {
     this.dv = 0.24;
     this.color = 0;
     this.bounces = 0;
+    this.t = 0; // time in the current mode
     this._recolor();
     this.setMode('logo');
   }
 
   setMode(mode) {
     this.mode = mode;
+    this.t = 0;
     this.mesh.material = this.materials[mode];
+    this.mesh.scale.y = mode === 'video' ? 0.02 : 1;
     this.logo.visible = mode === 'logo';
+    if (mode === 'blip') this.intro.paintBlip();
     this._place();
   }
 
+  /** A tape's going in: run the intro. `info` is { title, lines } (lines: date, length). */
+  startIntro(info) {
+    this.intro.start(info);
+    this.setMode('intro');
+  }
+
+  /** True once the intro has run its course. */
+  get introDone() {
+    return this.mode === 'intro' && this.t >= INTRO.length;
+  }
+
   update(dt) {
+    this.t += dt;
+    if (this.mode === 'intro') this.intro.update(this.t);
+    else if (this.mode === 'blip' && this.t >= BLIP) this.setMode('video');
+    else if (this.mode === 'video') this.mesh.scale.y = Math.max(0.02, 1 - (1 - Math.min(1, this.t / OPEN)) ** 3);
     if (this.mode !== 'logo') return;
     const mu = (this.s.w - this.lw) / 2;
     const mv = (this.s.h - this.lh) / 2;
@@ -405,6 +439,158 @@ export class ProjectorScreen {
   _place() {
     // (facing the screen, its right-hand side is toward -z)
     this.logo.position.set(this.s.x - 0.022, this.s.y + this.v, this.s.z - this.u);
+  }
+}
+
+const IW = 512;
+const IH = 288;
+const VCR_BLUE = '#1f2fd8';
+
+/**
+ * The intro, painted frame by frame (about 30 a second) on one canvas: the VCR's blue
+ * screen, static that thins out as it auto-tracks (with a rolling band that tears the
+ * picture, like the counter TV's), then the tape's details. Deterministic: the static
+ * is seeded.
+ */
+class TapeIntro {
+  constructor() {
+    this.canvas = makeCanvas(IW, IH);
+    this.ctx = this.canvas.getContext('2d');
+    this.texture = toTexture(this.canvas, { mipmaps: false });
+    this.info = { title: '', lines: [] };
+    this.next = 0;
+  }
+
+  start(info) {
+    this.info = info;
+    this.noise = rng(hash(info.title));
+    this.next = 0;
+    this._wrapped = null;
+    this.update(0);
+  }
+
+  update(t) {
+    if (t < this.next) return;
+    this.next = t + 1 / 30;
+    const ctx = this.ctx;
+    const r = this.noise;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    if (t < INTRO.black) {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, IW, IH);
+      this.texture.needsUpdate = true;
+      return;
+    }
+    // how far the tracking still has to go: 1 when the picture first appears, 0 once locked
+    const k = Math.max(0, 1 - (t - INTRO.black) / (INTRO.tracked - INTRO.black));
+    const rough = k ** 1.4;
+    ctx.fillStyle = VCR_BLUE;
+    ctx.fillRect(0, 0, IW, IH);
+    if (rough > 0.3) {
+      // the picture breathing as the heads search
+      ctx.fillStyle = `rgba(0,0,0,${0.25 * rough * r()})`;
+      ctx.fillRect(0, 0, IW, IH);
+    }
+
+    // the on-screen display
+    ctx.shadowColor = 'rgba(0,0,20,.85)';
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    ctx.fillStyle = '#fff';
+    ctx.font = `40px ${FONT.vt}`;
+    ctx.fillText('PLAY', 28, 50);
+    playTriangle(ctx, 38 + ctx.measureText('PLAY').width, 37, 24);
+    ctx.textAlign = 'right';
+    ctx.fillText('SP', IW - 28, 50);
+    ctx.textAlign = 'left';
+    if (t < INTRO.details) {
+      // the tracking meter: the marker hunts left and right, then settles in the middle
+      ctx.font = `30px ${FONT.vt}`;
+      ctx.fillText(k > 0 ? 'AUTO TRACKING' : 'TRACKING OK', 28, IH - 58);
+      const cells = 15;
+      const hunt = Math.round((cells - 1) / 2 + Math.sin(t * 7.5) * ((cells - 1) / 2) * Math.min(1, k * 1.6));
+      for (let i = 0; i < cells; i++) {
+        ctx.fillStyle = i === hunt ? '#fff' : 'rgba(255,255,255,.35)';
+        ctx.fillRect(28 + i * 22, IH - 44, 16, i === hunt ? 22 : 14);
+      }
+    } else {
+      ctx.font = `36px ${FONT.vt}`;
+      let y = 112;
+      for (const line of this._titleLines(ctx)) {
+        ctx.fillText(line, 28, y);
+        y += 36;
+      }
+      ctx.font = `30px ${FONT.vt}`;
+      y += 10;
+      for (const line of this.info.lines) {
+        ctx.fillText(line, 28, y);
+        y += 32;
+      }
+    }
+    ctx.shadowColor = 'transparent';
+
+    if (k > 0) {
+      // the rolling band: a strip of the picture torn sideways, full of noise
+      const bandH = 18 + 34 * rough;
+      const bandY = ((t * (90 + 140 * rough)) % (IH + bandH * 2)) - bandH;
+      ctx.drawImage(this.canvas, 0, bandY, IW, bandH, (r() - 0.5) * 60 * rough, bandY, IW, bandH);
+      ctx.fillStyle = `rgba(255,255,255,${0.35 * rough})`;
+      ctx.fillRect(0, bandY + bandH * 0.4, IW, 2);
+      // static, thick at first and thinning out
+      const n = Math.round(2600 * rough + 60);
+      for (let i = 0; i < n; i++) {
+        const v = Math.floor(150 + r() * 105);
+        ctx.fillStyle = `rgba(${v},${v},${v},${0.25 + 0.6 * rough})`;
+        const y = r() < 0.35 ? bandY + r() * bandH : r() * IH;
+        ctx.fillRect(r() * IW, y, 2 + r() * 5 * rough, 1);
+      }
+      // a few torn lines across the picture
+      for (let i = 0; i < Math.round(6 * rough); i++) {
+        const y = r() * IH;
+        ctx.drawImage(this.canvas, 0, y, IW, 3, (r() - 0.5) * 40, y, IW, 3);
+      }
+    }
+    // scanlines
+    ctx.fillStyle = 'rgba(0,0,0,.16)';
+    for (let y = 0; y < IH; y += 3) ctx.fillRect(0, y, IW, 1);
+    this.texture.needsUpdate = true;
+  }
+
+  /** The flash between the details and the picture: a white-hot line across black. */
+  paintBlip() {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, IW, IH);
+    const g = ctx.createLinearGradient(0, IH / 2 - 40, 0, IH / 2 + 40);
+    g.addColorStop(0, 'rgba(190,215,255,0)');
+    g.addColorStop(0.5, '#ffffff');
+    g.addColorStop(1, 'rgba(190,215,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, IH / 2 - 40, IW, 80);
+    this.texture.needsUpdate = true;
+  }
+
+  /** The title, upper case, wrapped onto at most three lines. */
+  _titleLines(ctx) {
+    if (this._wrapped) return this._wrapped;
+    const words = this.info.title.toUpperCase().split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    for (const w of words) {
+      const next = line ? `${line} ${w}` : w;
+      if (ctx.measureText(next).width > IW - 56 && line) {
+        lines.push(line);
+        line = w;
+      } else line = next;
+    }
+    if (line) lines.push(line);
+    if (lines.length > 3) {
+      lines.length = 3;
+      lines[2] = `${lines[2].replace(/\s*\S+$/, '')}…`;
+    }
+    this._wrapped = lines;
+    return lines;
   }
 }
 
@@ -454,24 +640,6 @@ function playTriangle(ctx, x, y, h) {
   ctx.lineTo(x, y + h / 2);
   ctx.closePath();
   ctx.fill();
-}
-
-/** A VCR's blue screen with PLAY in the corner. */
-function blueScreenTexture() {
-  const W = 512;
-  const H = 288;
-  const c = makeCanvas(W, H);
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#1f2fd8';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#fff';
-  ctx.font = `46px ${FONT.vt}`;
-  ctx.textBaseline = 'top';
-  ctx.fillText('PLAY', 30, 24);
-  playTriangle(ctx, 40 + ctx.measureText('PLAY').width, 46, 30);
-  ctx.textAlign = 'right';
-  ctx.fillText('SP', W - 30, H - 64);
-  return toTexture(c, { mipmaps: false });
 }
 
 // ------------------------------------------------------------------ textures
