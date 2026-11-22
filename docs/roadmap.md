@@ -6,7 +6,7 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 |---|---|---|---|
 | 1 | **The store** (main sales floor) | brutalmoose main channel ([youtube.com/brutalmoose](https://www.youtube.com/brutalmoose)) | ✅ Live: https://jasontruxal.github.io/brutalbuster/ |
 | 2 | **The lounge** (the theater room) | Plays whatever tape you pick | Room and props built (see "New rooms"); playing videos comes later |
-| 3 | **Streams** (the streaming archive) | [moose2](https://www.youtube.com/moose2), about 744 videos | Room built; its catalog (`public/streams.json`) is restocked daily; shelves still empty |
+| 3 | **Streams** (the streaming archive) | [moose2](https://www.youtube.com/moose2), 742 videos | Stocked: every stream on the shelves, by year (restocked daily into `public/streams.json`) |
 | 4 | **Extras** | To decide (the user is compiling the list) | Room built with empty "Coming Soon" shelves and boxes, kept as is for now |
 | 5 | **VHS backup vault** | His VHS backup channel, possibly plus other websites for the full list | Later (it could live in Extras) |
 
@@ -25,7 +25,7 @@ The work is split into passes, each finished and approved before the next:
 
 1. **Rooms and props** ✅ (this branch). Walls, floors, lighting and furniture, with empty "Coming Soon" shelves. No new videos. The lounge screen runs a "coming attractions" slideshow of box art.
 2. **Content pipeline** ✅ (branch `feature/streams-catalog`). `store.config.json` → `areas` lists the extra catalogs. `npm run sync` writes `public/catalog.json` (sales floor) and `public/streams.json` (Streams, from moose2), both in [the catalog format](catalog-format.md). Streams is shelved by year (`aislesBy: "year"`): one aisle per year, newest first. The committed `streams.json` is the 15 newest from the RSS feed; the deploy restocks it with the full channel.
-3. **Stock the Streams shelves.** The Streams room reads `streams.json`, sizes its shelving to it, and shelves year by year. Picking up and watching works the same as on the sales floor. Extras waits for its list.
+3. **Stock the Streams shelves** ✅ (branch `feature/streams-shelves`). The store loads `streams.json` alongside `catalog.json`. Each year gets a section, newest year first, starting on the centre gondola (the first thing you meet through the archway) and carrying on round the walls. Within a year, tapes run in upload order, so a playthrough reads Part One → Finale. The gondola's front end shows the latest stream and its back end a clerk's pick. The room runs further back, a bay at a time, when the catalog needs more shelf. 742 streams needed 25 bays and the standard room has 23, so it's 1.2 m deeper. Picking up, watching and **Find a tape** (a **Streams** button) work the same as on the sales floor. To keep the sales floor fast, rooms out of sight aren't drawn, and aiming only tests the tapes within reach. Extras waits for its list.
 4. **A working projector.** Sit on a couch and the tape plays on the lounge screen. `plan.lounge.screen` is the screen's position and size, for laying a YouTube player over it (see "Theater room" below). `plan.lounge.sofas` are the seats.
 
 ## Prize corner (built)
@@ -58,9 +58,10 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 - **Technical note:** a YouTube player can't be drawn inside the 3D scene as a texture (browser security rules). The usual approach is to lay the real player over the 3D screen and keep it lined up as you look around (three.js `CSS3DRenderer`), with a full-screen fallback on phones.
 
 ### 3. Streaming archive (Streams)
-- Built as the back two-thirds of the wing off the sales floor (see "New rooms"), with its own purple look and empty shelving for now.
+- Built as the back two-thirds of the wing off the sales floor (see "New rooms"), with its own purple look. Stocked year by year (pass 3).
 - **Source:** [moose2](https://www.youtube.com/moose2) (channel id `UCd6Tp3QcHhagsbSpyxmlzpg`), about 744 videos as of 2026-11-21. They're mostly stream recordings: full playthroughs and multi-part games ("Myst IV [Part One]" … "[Finale]"), plus shows like Play or Pass and Wiingo. Most games have their own playlist.
-- **Shelving:** by year (decided 2026-11-21). Parts of a game were streamed back to back, so they still sit together. One section per game was considered and set aside: 30+ games plus one-offs would need about 3 times the shelf space and dozens more signs.
+- **Shelving:** by year (decided 2026-11-21). Parts of a game were streamed back to back, so they still sit together. One section per game was considered and set aside: 30+ games plus one-offs would need about 3 times the shelf space and dozens more signs. Within a year the tapes are in upload order (oldest first), so a game's parts read in order. The years themselves run newest first.
+- **As of 2026-11-21:** 742 streams, 2017–2026. 2026 has 137, 2025 has 128 and 2021 has 17.
 
 ### 4. VHS backup vault
 - The full list may live partly outside YouTube. Plan: one "source adapter" per website in `scripts/lib/`, each producing the same catalog format, so the 3D store never has to care where a tape came from.

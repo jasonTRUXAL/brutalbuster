@@ -91,10 +91,10 @@ Every capsule and jackpot fires a `bb:prize` browser event. The always-win rewar
 ### The rooms off the sales floor
 
 - **The lounge.** A hallway in the left wall, near the front (under the pink **LOUNGE** sign), leads to a living-room-style lounge: two couches facing a projector screen, with curtains, a popcorn machine and a floor lamp. The screen runs a "coming attractions" slideshow of box art. It's decorative for now, but it's built so a video can play on that screen later.
-- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams, the future home of the live-stream archive.
+- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams: every stream from [moose2](https://www.youtube.com/moose2), shelved by the year it went up, newest year first. Within a year the tapes run in the order they were uploaded, so a playthrough's parts read left to right, Part One to Finale. Start on the gondola in the middle (this year and last), then go round the walls. The gondola's front end shows the latest stream. Pick up, flip and watch work the same as on the sales floor, and **Find a tape** has a **Streams** button.
 - **Extras.** A door in the back right-hand corner, past New Releases, leads to the Extras back room.
 
-Streams and Extras have empty **Coming Soon** shelves (and a few boxes of stock) until their videos are hooked up. See [docs/roadmap.md](docs/roadmap.md).
+Extras has empty **Coming Soon** shelves (and a few boxes of stock) until its videos are chosen. See [docs/roadmap.md](docs/roadmap.md).
 
 ## How the store is built
 
@@ -104,7 +104,8 @@ The building sizes itself to the catalog. `src/layout.js` picks the number and l
 - **The back wall is New Releases**: the newest uploads, several copies each.
 - **Endcaps** each spotlight one random tape.
 - **Leftover shelf space** becomes themed sections (Staff Picks, Cult Corner, Late Night…) stocked with a random mix of the catalog.
-- **The other rooms** (hallway, lounge, Streams, Extras) are placed relative to the sales floor, so they move with it as it grows.
+- **The other rooms** (hallway, lounge, Streams, Extras) are placed relative to the sales floor, so they move with it as it grows. Streams also runs further back, a bay at a time, when its own catalog needs more shelf.
+- **Rooms out of sight aren't drawn.** A room off the sales floor is only drawn while a doorway leading to it is in view, so the wing costs nothing from the front door.
 
 Everything is generated in code. There are no 3D models or image files: box art, carpet, signage and neon are all painted on `<canvas>`. All covers are packed into a few texture atlases and drawn with GPU instancing, so even a few thousand tapes take only a handful of draw calls.
 
@@ -166,6 +167,6 @@ It's a static site: `npm run build` produces a `dist/` folder you can host anywh
 ## What's next
 
 - **Viewing experience.** Right now **Watch now** opens a YouTube embed inside a CRT-styled frame. Possible next steps: play the tape on the lounge's projector screen, or add a "rewinding…" insert animation.
-- **Stock Streams and Extras** from their own channels or playlists.
+- **Stock Extras** once its list is ready.
 - Ambient store audio (fluorescent hum, muzak, the clack of a case).
 - A rentals counter that remembers what you've watched.

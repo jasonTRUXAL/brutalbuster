@@ -1,11 +1,12 @@
 import './style.css';
 import * as THREE from 'three';
 import { loadFonts } from './fonts.js';
-import { loadCatalog } from './catalog.js';
+import { loadCatalog, fetchCatalog, addArea, shelfName, AREAS } from './catalog.js';
 import { planStore } from './layout.js';
 import { CoverAtlas } from './atlas.js';
 import { TapeShelves } from './tapes.js';
 import { buildStore } from './store.js';
+import { RoomCulling } from './rooms.js';
 import { PlayerControls } from './controls.js';
 import { Inspector } from './inspect.js';
 import { Arcade } from './arcade.js';
@@ -23,12 +24,22 @@ document.body.classList.toggle('touch', isTouch);
 async function main() {
   await loadFonts();
 
+  // dev only: ?catalog=other.json (or ?streams=other.json for an area) previews an
+  // alternate catalog from /public
+  const params = new URLSearchParams(location.search);
+  const fileFor = (param, fallback) => {
+    const alt = import.meta.env.DEV && params.get(param);
+    return `${import.meta.env.BASE_URL}${alt && /^[\w.-]+\.json$/.test(alt) ? alt : fallback}`;
+  };
+  // The other areas' catalogs (Streams) come in alongside. They're optional: without
+  // one, that room's shelves stay "coming soon".
+  const areaFiles = AREAS.map((a) => fetchCatalog(fileFor(a.id, a.file)).catch((err) => {
+    console.warn(`[catalog] ${a.name}: ${err.message}`);
+    return null;
+  }));
   let catalog;
   try {
-    // dev only: ?catalog=other.json previews an alternate catalog from /public
-    const alt = import.meta.env.DEV && new URLSearchParams(location.search).get('catalog');
-    const file = alt && /^[\w.-]+\.json$/.test(alt) ? alt : 'catalog.json';
-    catalog = await loadCatalog(`${import.meta.env.BASE_URL}${file}`);
+    catalog = await loadCatalog(fileFor('catalog', 'catalog.json'));
   } catch (err) {
     ui.fatal('The store is closed', `Couldn't load the tape catalog: ${err.message}`);
     return;
@@ -37,6 +48,8 @@ async function main() {
     ui.fatal('The shelves are empty', 'catalog.json has no videos yet. Run `npm run sync` to stock the store.');
     return;
   }
+  (await Promise.all(areaFiles)).forEach((raw, i) => raw && addArea(catalog, AREAS[i], raw));
+  const areaVideos = Object.values(catalog.areas).flatMap((a) => a.videos);
   ui.brand(catalog.store);
   ui.splashStatus('BUILDING THE STORE');
 
@@ -67,12 +80,14 @@ async function main() {
   const atlas = new CoverAtlas();
   const paintCover = (v) => atlas.draw(v.id, coverData(v, catalog.aisleById.get(v.aisle), catalog.store));
   catalog.videos.forEach(paintCover);
+  areaVideos.forEach(paintCover);
   atlas.flush();
 
   const tapes = new TapeShelves(plan.slots, atlas);
   scene.add(tapes.group);
   const store = buildStore(scene, plan, catalog);
   const controls = new PlayerControls(camera, canvas, { colliders: store.colliders, bounds: plan.bounds, spawn: plan.spawn });
+  const culling = new RoomCulling(plan, store.annex.groups, tapes.covers);
   const inspector = new Inspector(catalog);
   // The prize corner's machines. Every capsule / jackpot is announced as a `bb:prize`
   // event; that's where the always-win reward system will plug in.
@@ -131,7 +146,7 @@ async function main() {
     const s = plan.slots[slot];
     ui.hover({
       title: s.video.title,
-      aisle: catalog.aisleById.get(s.video.aisle)?.name || s.section.label,
+      aisle: shelfName(catalog.aisleById.get(s.video.aisle)) || s.section.label,
       hint: isTouch ? 'Tap to pick up' : 'Click to pick up',
     });
   }
@@ -361,17 +376,14 @@ async function main() {
     for (const [dx, dy] of FAN) {
       probe.set(ndc.x + dx / camera.aspect, ndc.y + dy);
       raycaster.setFromCamera(probe, camera);
-      const hits = raycaster.intersectObject(tapes.bodies, false);
-      for (const h of hits) {
-        const s = plan.slots[h.instanceId];
-        if (!s) continue;
-        // ignore tapes on the far side of a shelf (their face points away from us)
-        toCam.copy(camera.position).sub(h.point);
-        if (toCam.x * s.face.n.x + toCam.z * s.face.n.z > 0) {
-          slotDistance = h.distance;
-          return h.instanceId;
-        }
-        break;
+      const h = tapes.hit(raycaster.ray, raycaster.far);
+      if (!h) continue;
+      // ignore tapes on the far side of a shelf (their face points away from us)
+      const s = plan.slots[h.index];
+      toCam.copy(camera.position).sub(h.point);
+      if (toCam.x * s.face.n.x + toCam.z * s.face.n.z > 0) {
+        slotDistance = h.distance;
+        return h.index;
       }
     }
     slotDistance = Infinity;
@@ -389,20 +401,22 @@ async function main() {
   }
 
   // ------------------------------------------------------------ thumbnails
+  // The sales floor's first (the splash counts them), then the other rooms' quietly.
   const withThumbs = catalog.videos.filter((v) => v.thumb);
   let loaded = 0;
   if (withThumbs.length) ui.splashProgress(0, withThumbs.length);
   else ui.splashStatus('ALL TAPES SHELVED', `${catalog.videos.length} IN STOCK`);
   ui.splashReady();
+  const thumbFor = async (v) => {
+    if (!(await loadThumb(v))) return;
+    paintCover(v);
+    store.refreshArt(v);
+  };
   mapLimit(withThumbs, 12, async (v) => {
-    const t = await loadThumb(v);
-    if (t) {
-      paintCover(v);
-      store.refreshArt(v);
-    }
+    await thumbFor(v);
     loaded++;
     ui.splashProgress(loaded, withThumbs.length);
-  });
+  }).then(() => mapLimit(areaVideos.filter((v) => v.thumb), 8, thumbFor));
 
   // ------------------------------------------------------------ loop
   const timer = new THREE.Timer();
@@ -435,6 +449,7 @@ async function main() {
   }
 
   function draw() {
+    culling.update(camera);
     renderer.clear();
     if (ps1.enabled) ps1.render(scene, camera);
     else renderer.render(scene, camera);
@@ -457,7 +472,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, ps1, setPS1, goToVideo, pickUp, putBack, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, ps1, culling, setPS1, goToVideo, pickUp, putBack, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
       get hoveredGame() { return hoveredGame; },

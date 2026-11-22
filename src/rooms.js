@@ -1,6 +1,7 @@
 // The rooms off the sales floor, as planned by planAnnex() in layout.js: the hallway,
-// the wing with the lounge and Streams, and the Extras back room. Streams and Extras
-// have "coming soon" shelving until their own catalogs exist (docs/roadmap.md).
+// the wing with the lounge and Streams, and the Extras back room. Streams' tapes are
+// drawn with the rest by TapeShelves; this builds the shelving they sit on. Extras has
+// "coming soon" shelving until its own catalog exists (docs/roadmap.md).
 //
 // Each room batches its own geometry into its own group, so three.js can skip a whole
 // room when it's outside the view.
@@ -11,6 +12,7 @@ import { neonTexture, panelTexture, cardboardTexture } from './textures.js';
 import { rng, shuffle } from './util.js';
 import { Batcher, signPlane, batchWall, flatGeometry, buildGondolaShell, buildFace, addPoster } from './fixtures.js';
 import { buildLounge } from './lounge.js';
+import { visibleRooms } from './layout.js';
 
 const ROOMS = ['hall', 'lounge', 'streams', 'extras'];
 
@@ -110,7 +112,7 @@ export function buildAnnex({ scene, root, mat, plan, catalog, trackArt, animated
     for (const b of room.boxes) boxStack(B, cardboard, b);
   };
   // (Streams' sign lines up with the archway, so it shows through it from the lounge)
-  fitRoom('streams', streams, 'STREAMS', '#b388ff', 'LIVE ARCHIVE · COMING SOON', ax);
+  fitRoom('streams', streams, 'STREAMS', '#b388ff', streams.stocked ? 'LIVE ARCHIVE' : 'LIVE ARCHIVE · COMING SOON', ax);
   fitRoom('extras', extras, 'EXTRAS', BRAND.cyan, 'COMING SOON', (extras.x0 + extras.x1) / 2);
 
   // ---- the lounge's furniture and projector
@@ -163,5 +165,40 @@ function boxStack(B, material, { x, z, seed }) {
     m.makeRotationY((r() - 0.5) * 0.5).setPosition(x + (r() - 0.5) * 0.05, 0, z + (r() - 0.5) * 0.05);
     B.boxAt(material, m, 0, y + h / 2, 0, w, h, d, 2);
     y += h;
+  }
+}
+
+/**
+ * Skips drawing the rooms off the sales floor (and the tapes on their shelves) while no
+ * doorway to them is in view. From the front door that's the whole wing and Extras; a
+ * room's dozens of draw calls only come back once you could actually see into it.
+ */
+export class RoomCulling {
+  constructor(plan, groups, meshes = []) {
+    this.plan = plan;
+    this.byRoom = new Map();
+    const put = (room, o) => {
+      if (!room || room === 'main') return;
+      if (!this.byRoom.has(room)) this.byRoom.set(room, []);
+      this.byRoom.get(room).push(o);
+    };
+    for (const [room, group] of Object.entries(groups)) put(room, group);
+    for (const m of meshes) put(m.userData.room, m);
+    this.frustum = new THREE.Frustum();
+    this.box = new THREE.Box3();
+    this.pv = new THREE.Matrix4();
+    this.visible = new Set();
+  }
+
+  update(camera) {
+    camera.updateMatrixWorld();
+    this.frustum.setFromProjectionMatrix(this.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const inView = (p) => {
+      this.box.min.set(p.x0, p.y0, p.z0);
+      this.box.max.set(p.x1, p.y1, p.z1);
+      return this.frustum.intersectsBox(this.box);
+    };
+    this.visible = visibleRooms(this.plan, camera.position, inView);
+    for (const [room, objects] of this.byRoom) for (const o of objects) o.visible = this.visible.has(room);
   }
 }

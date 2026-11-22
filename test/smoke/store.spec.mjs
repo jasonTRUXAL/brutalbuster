@@ -171,6 +171,53 @@ test('the rooms off the sales floor: you can walk into each one, and they render
   });
 });
 
+test('Streams is stocked from streams.json, a section per year', async ({ store: page }) => {
+  const r = await page.evaluate(() => {
+    const bb = window.__bb;
+    const area = bb.catalog.areas.streams;
+    const slots = bb.plan.slots.filter((s) => s.face.room === 'streams');
+    const shelved = new Set(slots.map((s) => s.video.id));
+    // from the front door the wing is out of sight, so it isn't drawn
+    bb.controls.teleport(bb.plan.spawn.x, bb.plan.spawn.z, bb.plan.spawn.yaw, -0.04);
+    bb.advance(0.1);
+    const fromDoor = bb.store.annex.groups.streams.visible;
+    return {
+      tapes: area?.videos.length || 0,
+      stocked: bb.plan.streams.stocked,
+      unshelved: (area?.videos || []).filter((v) => !shelved.has(v.id)).length,
+      years: bb.plan.streams.sections.filter((s) => s.kind === 'genre').map((s) => s.label),
+      aisles: (area?.aisles || []).map((a) => a.name),
+      fromDoor,
+      directory: Boolean(document.querySelector('.dir-aisles [data-aisle="area:streams"]')),
+    };
+  });
+  expect(r.stocked).toBe(r.tapes > 0);
+  expect(r.unshelved, 'streams with no slot').toBe(0);
+  expect(r.years).toEqual(r.aisles);
+  expect(r.fromDoor, 'Streams drawn while out of sight').toBe(false);
+  expect(r.directory).toBe(r.tapes > 0);
+  test.skip(!r.tapes, 'no streams in this catalog');
+
+  // walk to a stream and pick it up: the panel names its shelf; Streams is drawn now
+  const held = await page.evaluate(() => {
+    const bb = window.__bb;
+    const v = bb.catalog.areas.streams.videos[0];
+    bb.goToVideo(v.id);
+    bb.advance(1);
+    return { mode: bb.mode, title: v.title, shelf: document.querySelector('.ip-aisle .name').textContent, drawn: bb.store.annex.groups.streams.visible };
+  });
+  expect(held.mode).toBe('inspect');
+  expect(held.shelf).toMatch(/^STREAMS · /);
+  expect(held.drawn).toBe(true);
+  await expect(page.locator('.ip-title')).toHaveText(held.title);
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    bb.putBack(false);
+    bb.advance(1);
+    bb.controls.teleport(bb.plan.spawn.x, bb.plan.spawn.z, bb.plan.spawn.yaw, -0.04); // back to the door for the next test
+  });
+});
+
 test('the 3D store actually renders', async ({ store: page }) => {
   await page.evaluate(() => window.__bb.setMode('walk'));
   const colours = await page.evaluate(() => {

@@ -1,5 +1,6 @@
 // DOM overlays: splash, HUD tooltip, held-tape panel, TV player, store directory.
 import { escapeHtml, makeCanvas } from './util.js';
+import { shelfName } from './catalog.js';
 import { mountGamePanel } from './arcade-ui.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -153,7 +154,7 @@ export class UI {
     void p.offsetWidth;
     p.style.animation = '';
     $('.ip-aisle .dot').style.background = aisle?.color || '#ffc61a';
-    $('.ip-aisle .name').textContent = (aisle?.name || '').toUpperCase();
+    $('.ip-aisle .name').textContent = shelfName(aisle).toUpperCase();
     $('.ip-title').textContent = video.title;
     $('.ip-meta').textContent = [video.year, video.duration].filter(Boolean).join('  ·  ');
     $('.ip-desc').textContent = video.description || 'No synopsis on file.';
@@ -198,8 +199,12 @@ export class UI {
       b.setAttribute('aria-pressed', id === 'all' ? 'true' : 'false');
       nav.appendChild(b);
     };
+    // the sales floor's aisles, then one button per other room (Streams)
+    const areas = Object.values(catalog.areas || {}).filter((a) => a.videos.length);
+    const everything = [...catalog.videos, ...areas.flatMap((a) => a.videos)];
     mk('all', 'All tapes');
     catalog.aisles.forEach((a) => mk(a.id, a.name, a.color));
+    areas.forEach((a) => mk(`area:${a.id}`, a.name, a.color));
     nav.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-aisle]');
       if (!b) return;
@@ -223,8 +228,8 @@ export class UI {
     const LIMIT = 240;
     const render = () => {
       const { aisle, q } = this.dirState;
-      const list = catalog.videos.filter(
-        (v) => (aisle === 'all' || v.aisle === aisle) && (!q || v.title.toLowerCase().includes(q) || v.description.toLowerCase().includes(q)),
+      const list = everything.filter(
+        (v) => (aisle === 'all' || v.aisle === aisle || aisle === `area:${v.area}`) && (!q || v.title.toLowerCase().includes(q) || v.description.toLowerCase().includes(q)),
       );
       list.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true }));
       grid.innerHTML = '';
@@ -242,7 +247,8 @@ export class UI {
         t.textContent = v.title;
         const a = document.createElement('div');
         a.className = 'a';
-        a.textContent = [catalog.aisleById.get(v.aisle)?.name, v.year].filter(Boolean).join(' · ');
+        // (a stream's "year" is whatever year its title mentions, not when it aired: leave it off)
+        a.textContent = [shelfName(catalog.aisleById.get(v.aisle)), !v.area && v.year].filter(Boolean).join(' · ');
         btn.append(t, a);
         frag.appendChild(btn);
       }

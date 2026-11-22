@@ -4,6 +4,7 @@
 // and scaled by s = width / 160.
 import { FONT } from './fonts.js';
 import { hash, rng, shade, rgba, hexToRgb, makeCanvas } from './util.js';
+import { shelfName } from './catalog.js';
 
 // ---------------------------------------------------------------- thumbnails
 
@@ -415,7 +416,7 @@ export function coverData(video, aisle, store) {
     description: video.description,
     year: video.year,
     duration: video.duration,
-    aisleName: aisle?.name || 'Rare Finds',
+    aisleName: shelfName(aisle) || 'Rare Finds',
     color: aisle?.color || '#ffc61a',
     thumb: getThumb(video),
     store,

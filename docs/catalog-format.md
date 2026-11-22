@@ -1,6 +1,6 @@
 # Catalog format (`public/catalog.json`)
 
-Each area of the store has its own file in this format: `public/catalog.json` for the sales floor (the main channel), and one file per entry under `areas` in `store.config.json` (`public/streams.json` for Streams, from moose2). This page uses `catalog.json` for all of them.
+Each area of the store has its own file in this format: `public/catalog.json` for the sales floor (the main channel), and one file per entry under `areas` in `store.config.json` (`public/streams.json` for Streams, from moose2). This page uses `catalog.json` for all of them. The store loads the area files listed in `AREAS` (`src/catalog.js`); an area's file is optional, and without it that room's shelves say "Coming Soon". An area's aisles are shelved in the order the file lists them, and its tapes in upload order (`publishedAt`) within each aisle.
 
 `catalog.json` is the hand-off between the two halves of the project:
 

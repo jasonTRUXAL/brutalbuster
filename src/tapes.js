@@ -6,8 +6,11 @@ import { slotMatrix } from './layout.js';
 import { hash } from './util.js';
 
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
+const CASE = new THREE.Box3(new THREE.Vector3(-DIM.CASE_W / 2, -DIM.CASE_H / 2, -DIM.CASE_D / 2), new THREE.Vector3(DIM.CASE_W / 2, DIM.CASE_H / 2, DIM.CASE_D / 2));
 const _m = new THREE.Matrix4();
 const _v = new THREE.Vector3();
+const _ray = new THREE.Ray();
+const _hit = new THREE.Vector3();
 const WHITE = new THREE.Color(1, 1, 1);
 const GLOW = new THREE.Color(1.6, 1.55, 1.4);
 
@@ -28,7 +31,11 @@ export class TapeShelves {
     this.atlas = atlas;
     this.group = new THREE.Group();
     this.base = slots.map((s) => slotMatrix(s, new THREE.Matrix4(), hash(s.video.id) + s.col * 31 + s.row * 7));
+    this.inverse = this.base.map((m) => m.clone().invert());
+    this.centers = this.base.map((m) => new THREE.Vector3().setFromMatrixPosition(m));
     this.hovered = -1;
+    this.hoverMatrix = new THREE.Matrix4();
+    this.hoverInverse = new THREE.Matrix4();
 
     // Cases
     const bodyGeo = new THREE.BoxGeometry(DIM.CASE_W, DIM.CASE_H, DIM.CASE_D);
@@ -57,6 +64,8 @@ export class TapeShelves {
       geo.setAttribute('aUvRect', uv);
       const mesh = new THREE.InstancedMesh(geo, atlasMaterial(atlas.texture(page)), indices.length);
       mesh.name = `tape-covers-${page}`;
+      const rooms = new Set(indices.map((i) => slots[i].face.room));
+      mesh.userData.room = rooms.size === 1 ? [...rooms][0] : null; // (lets RoomCulling skip it)
       indices.forEach((slotIdx, k) => {
         mesh.setMatrixAt(k, this.base[slotIdx]);
         mesh.setColorAt(k, WHITE);
@@ -95,8 +104,9 @@ export class TapeShelves {
     this.hovered = i;
     if (i >= 0) {
       const n = this.slots[i].face.n;
-      _m.copy(this.base[i]).premultiply(new THREE.Matrix4().makeTranslation(_v.set(n.x * 0.06, 0.01, n.z * 0.06)));
-      this._set(i, _m);
+      this.hoverMatrix.copy(this.base[i]).premultiply(_m.makeTranslation(_v.set(n.x * 0.06, 0.01, n.z * 0.06)));
+      this.hoverInverse.copy(this.hoverMatrix).invert();
+      this._set(i, this.hoverMatrix);
       this._tint(i, GLOW);
     }
   }
@@ -117,8 +127,23 @@ export class TapeShelves {
     return this.base[i];
   }
 
-  /** Raycast helper: the case bodies are the pick target. */
-  slotFromHit(hit) {
-    return hit && hit.object === this.bodies ? hit.instanceId : -1;
+  /**
+   * The nearest tape `ray` hits within `far` metres, as { index, distance, point }, or
+   * null. Only the tapes within reach are tried, so it costs the same however many the
+   * store holds (three.js's own instanced raycast tries every one: milliseconds a frame).
+   */
+  hit(ray, far) {
+    const reach2 = (far + DIM.CASE_H) ** 2;
+    let best = null;
+    for (let i = 0; i < this.centers.length; i++) {
+      if (this.centers[i].distanceToSquared(ray.origin) > reach2 || this.hiddenSet?.has(i)) continue;
+      const hovered = i === this.hovered; // (slid forward: test where it's drawn)
+      const p = _ray.copy(ray).applyMatrix4(hovered ? this.hoverInverse : this.inverse[i]).intersectBox(CASE, _hit);
+      if (!p) continue;
+      p.applyMatrix4(hovered ? this.hoverMatrix : this.base[i]);
+      const distance = p.distanceTo(ray.origin);
+      if (distance <= far && (!best || distance < best.distance)) best = { index: i, distance, point: p.clone() };
+    }
+    return best;
   }
 }

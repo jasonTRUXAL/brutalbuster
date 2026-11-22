@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { planStore, slotMatrix, walkFrom } from '../../src/layout.js';
+import { planStore, slotMatrix, walkFrom, roomAt, visibleRooms } from '../../src/layout.js';
 import { DIM } from '../../src/config.js';
 import { catalogOf } from './helpers.mjs';
 
@@ -132,4 +132,47 @@ test('bigger catalogs get bigger stores', () => {
   const small = planStore(catalogOf(50, 5));
   const big = planStore(catalogOf(2000, 5));
   assert.ok(big.W * big.D > small.W * small.D);
+});
+
+test('which rooms could be in view, through which doorways', async (t) => {
+  const plan = planStore(catalogOf(245, 6));
+  const { lounge, streams, extras, hall } = plan;
+  const archX = (lounge.arch.x0 + lounge.arch.x1) / 2;
+  const sorted = (set) => [...set].sort();
+
+  await t.test('every point in the building is in some room', () => {
+    assert.equal(roomAt(plan, plan.spawn), 'main');
+    assert.equal(roomAt(plan, { x: (hall.x0 + hall.x1) / 2, z: (hall.z0 + hall.z1) / 2 }), 'hall');
+    assert.equal(roomAt(plan, { x: streams.x0 + 1, z: streams.z0 + 1 }), 'streams');
+    // standing in the archway, inside the partition's thickness
+    assert.notEqual(roomAt(plan, { x: archX, z: (lounge.z0 + streams.z1) / 2 }), 'main');
+  });
+
+  await t.test('rooms are reached doorway by doorway', () => {
+    const all = sorted(plan.rooms.map((r) => r.id));
+    assert.deepEqual(sorted(visibleRooms(plan, plan.spawn, () => false)), ['main']);
+    assert.deepEqual(sorted(visibleRooms(plan, plan.spawn, () => true)), all);
+    assert.deepEqual(sorted(visibleRooms(plan, { x: streams.x0 + 1, z: streams.z0 + 1 }, () => true)), all);
+    const hallDoor = (p) => p.rooms.includes('main') && p.rooms.includes('hall');
+    assert.deepEqual(sorted(visibleRooms(plan, plan.spawn, hallDoor)), ['hall', 'main']);
+  });
+
+  await t.test('with a real camera', () => {
+    const camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.08, 140);
+    const frustum = new THREE.Frustum();
+    const box = new THREE.Box3();
+    const look = (x, z, yaw) => {
+      camera.position.set(x, DIM.EYE, z);
+      camera.rotation.set(0, yaw, 0, 'YXZ');
+      camera.updateMatrixWorld();
+      frustum.setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      return visibleRooms(plan, camera.position, (p) => frustum.intersectsBox(box.set(new THREE.Vector3(p.x0, p.y0, p.z0), new THREE.Vector3(p.x1, p.y1, p.z1))));
+    };
+    const fromDoor = look(plan.spawn.x, plan.spawn.z, 0);
+    assert.ok(!fromDoor.has('lounge') && !fromDoor.has('streams'), 'the wing is out of sight from the front door');
+    assert.ok(look(archX, lounge.z0 + 2, 0).has('streams'), 'facing the archway, Streams is in view');
+    assert.ok(!look(lounge.x1 - 0.6, lounge.screen.z, Math.PI / 2).has('streams'), 'facing the screen, Streams is behind you');
+    assert.ok(look(-plan.W / 2 + 1.5, (hall.z0 + hall.z1) / 2, Math.PI / 2).has('lounge'), 'looking down the hallway, the lounge is in view');
+    assert.ok(look((extras.door.x0 + extras.door.x1) / 2, -plan.D / 2 + 2, 0).has('extras'), 'facing the back door, Extras is in view');
+  });
 });

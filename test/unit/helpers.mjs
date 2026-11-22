@@ -22,3 +22,26 @@ export function rawCatalog(n, aisleCount = 5) {
 }
 
 export const catalogOf = (n, aisleCount) => normalizeCatalog(rawCatalog(n, aisleCount));
+
+/**
+ * A raw archive catalog (streams.json shape, as `aislesBy: "year"` writes it): `n` uploads
+ * spread over the last `years` years, an aisle per year, newest year and upload first.
+ */
+export function rawArchive(n, years = 10, lastYear = 2026) {
+  const videos = Array.from({ length: n }, (_, i) => {
+    const year = lastYear - Math.floor((i * years) / n);
+    const day = Math.floor(((i * years) % n) / (n / years) * 360) + (i % 3); // spread over the year
+    return {
+      id: `stream-${String(i).padStart(5, '0')}`,
+      youtubeId: null,
+      title: `Stream Number ${i}: Part ${(i % 4) + 1}`,
+      description: 'A test stream.',
+      aisle: String(year),
+      year: null,
+      duration: '2:00:00',
+      publishedAt: new Date(Date.UTC(year, 11, 31) - day * 86400000).toISOString(),
+    };
+  });
+  const aisles = [...new Set(videos.map((v) => v.aisle))].map((y) => ({ id: y, name: y }));
+  return { schemaVersion: 1, source: 'test', store: { name: 'TEST' }, aisles, videos };
+}

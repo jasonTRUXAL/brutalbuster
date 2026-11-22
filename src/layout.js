@@ -8,6 +8,8 @@ import { rng, shuffle, hash } from './util.js';
 const MAX_COPIES = 4;
 // Fill eye-level shelves first so partly stocked bays look intentional.
 const ROW_PRIORITY = [3, 2, 4, 1, 0];
+// ...except in an archive, which reads like a page: top shelf first.
+const TOP_DOWN = [4, 3, 2, 1, 0];
 const FEATURED = [
   'Staff Picks', 'Recently Returned', 'Hidden Gems', 'Cult Corner', 'Late Night',
   'Blast From the Past', 'Grab Bag', 'Weird Stuff', 'Dollar Rentals', 'Rewind Classics',
@@ -66,6 +68,86 @@ function withCopies(items, slots, maxCopies) {
   return out;
 }
 
+/**
+ * Hand `spare` bays to the groups ({ items, bays }) that would otherwise be thinnest
+ * (never past MAX_COPIES copies a title). A negative `spare` (more bays wanted than there
+ * are) takes bays back from the biggest groups instead. Returns the bays left over.
+ */
+function shareBays(groups, spare) {
+  while (spare > 0) {
+    let best = null;
+    for (const g of groups) {
+      const ratio = ((g.bays + 1) * SLOTS_PER_BAY) / g.items.length;
+      if (ratio <= MAX_COPIES && (!best || ratio < ((best.bays + 1) * SLOTS_PER_BAY) / best.items.length)) best = g;
+    }
+    if (!best) break;
+    best.bays++;
+    spare--;
+  }
+  // Too big for the room? Trim the largest groups.
+  while (spare < 0) {
+    const g = groups.reduce((a, b) => (b.bays > a.bays ? b : a));
+    g.bays--;
+    spare++;
+  }
+  return spare;
+}
+
+/** Give each section its bays, in order, snaking along `faces` (one after another). */
+function snakeBays(faces, sections) {
+  let fi = 0;
+  let bi = 0;
+  for (const sec of sections) {
+    for (let b = 0; b < sec.bays; b++) {
+      while (fi < faces.length && bi >= faces[fi].bays) {
+        fi++;
+        bi = 0;
+      }
+      if (fi >= faces.length) return;
+      faces[fi].bayList.push({ section: sec, index: bi });
+      bi++;
+    }
+  }
+}
+
+/**
+ * Put each section's tapes into the slots of the bays it was given. A section carries on
+ * from one bay (or face) to the next. Shelves fill in `face.rows` order (eye level first
+ * unless the face says otherwise); a `rowMajor` face runs each row along the whole face.
+ */
+function fillSlots(faces) {
+  const slots = [];
+  const cursor = new Map();
+  for (const face of faces) {
+    const rows = face.rows || ROW_PRIORITY;
+    if (face.rowMajor) {
+      const sec = face.bayList[0]?.section;
+      if (!sec) continue;
+      let k = 0;
+      for (const row of rows) {
+        for (const { index: bay } of face.bayList) {
+          for (let col = 0; col < face.perRow; col++) {
+            const video = sec.items?.[k++];
+            if (video) slots.push({ video, face, bay, row, col, section: sec });
+          }
+        }
+      }
+      continue;
+    }
+    for (const { section: sec, index: bay } of face.bayList) {
+      let k = cursor.get(sec) || 0;
+      for (const row of rows) {
+        for (let col = 0; col < face.perRow; col++) {
+          const video = sec.items?.[k++];
+          if (video) slots.push({ video, face, bay, row, col, section: sec });
+        }
+      }
+      cursor.set(sec, k);
+    }
+  }
+  return slots;
+}
+
 export function planStore(catalog) {
   const { videos, aisles } = catalog;
   const random = rng(hash(videos.map((v) => v.id).join('|')) || 1);
@@ -83,25 +165,7 @@ export function planStore(catalog) {
   const dims = chooseSize(need);
   const { K, M, W, D, zFront, zBack } = dims;
 
-  // Hand out spare bays to genres that would otherwise be thin (≤ MAX_COPIES copies per title).
-  let spare = dims.genreBays - need;
-  while (spare > 0) {
-    let best = null;
-    for (const g of genres) {
-      const ratio = ((g.bays + 1) * SLOTS_PER_BAY) / g.items.length;
-      if (ratio <= MAX_COPIES && (!best || ratio < ((best.bays + 1) * SLOTS_PER_BAY) / best.items.length)) best = g;
-    }
-    if (!best) break;
-    best.bays++;
-    spare--;
-  }
-  // Too big for the biggest store? Trim the oldest tapes from the largest genres.
-  let over = need - dims.genreBays;
-  while (over > 0) {
-    const g = genres.reduce((a, b) => (b.bays > a.bays ? b : a));
-    g.bays--;
-    over--;
-  }
+  let spare = shareBays(genres, dims.genreBays - need);
 
   // ---- sections (in shelving order)
   const sections = [];
@@ -143,7 +207,7 @@ export function planStore(catalog) {
   const faces = [];
   const addFace = (f) => {
     const perRow = Math.floor((f.bayW - 0.06) / DIM.SLOT_PITCH);
-    faces.push({ id: faces.length, bayW: DIM.BAY_W, ...f, perRow, bayList: [] });
+    faces.push({ id: faces.length, room: 'main', bayW: DIM.BAY_W, ...f, perRow, bayList: [] });
     return faces[faces.length - 1];
   };
   const gx = (i) => -W / 2 + DIM.WALL_UNIT + DIM.SIDE_AISLE + DIM.G_DEPTH / 2 + i * (DIM.G_DEPTH + DIM.AISLE);
@@ -176,20 +240,7 @@ export function planStore(catalog) {
     length: dims.rightLen, bays: dims.rightBays, bayW: DIM.BAY_W,
   }));
 
-  // Assign bays to sections, snaking through the side faces.
-  let fi = 0;
-  let bi = 0;
-  for (const sec of sections) {
-    for (let b = 0; b < sec.bays; b++) {
-      while (fi < sideFaces.length && bi >= sideFaces[fi].bays) {
-        fi++;
-        bi = 0;
-      }
-      if (fi >= sideFaces.length) break;
-      sideFaces[fi].bayList.push({ section: sec, index: bi });
-      bi++;
-    }
-  }
+  snakeBays(sideFaces, sections);
 
   // Back wall — New Releases.
   const backZ = -D / 2 + DIM.WALL_UNIT;
@@ -232,34 +283,7 @@ export function planStore(catalog) {
   }
 
   // ---- slots
-  const slots = [];
-  const sectionCursor = new Map();
-  for (const face of faces) {
-    if (face.rowMajor) {
-      const sec = face.bayList[0]?.section;
-      if (!sec) continue;
-      let k = 0;
-      for (const row of ROW_PRIORITY) {
-        for (const { index: bay } of face.bayList) {
-          for (let col = 0; col < face.perRow; col++) {
-            const video = sec.items[k++];
-            if (video) slots.push({ video, face, bay, row, col, section: sec });
-          }
-        }
-      }
-      continue;
-    }
-    for (const { section: sec, index: bay } of face.bayList) {
-      let k = sectionCursor.get(sec) || 0;
-      for (const row of ROW_PRIORITY) {
-        for (let col = 0; col < face.perRow; col++) {
-          const video = sec.items[k++];
-          if (video) slots.push({ video, face, bay, row, col, section: sec });
-        }
-      }
-      sectionCursor.set(sec, k);
-    }
-  }
+  const slots = fillSlots(faces);
 
   // ---- hanging aisle signs (one per aisle, at the front end of the gondolas)
   const aisleSigns = [];
@@ -296,8 +320,9 @@ export function planStore(catalog) {
   const door = { x: doorX, width: 1.9, height: 2.35 };
 
   // The rooms off the sales floor, and every wall in the building.
-  const annex = planAnnex(dims);
+  const annex = planAnnex(dims, catalog.areas?.streams);
   colliders.push(...annex.colliders);
+  slots.push(...annex.slots);
   const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
   for (const r of annex.rooms) {
     bounds.minX = Math.min(bounds.minX, r.x0);
@@ -311,6 +336,7 @@ export function planStore(catalog) {
     faces, slots, sections, newSection, endcapSections, gondolas, aisleSigns, colliders,
     counter, door,
     walls: annex.walls,
+    portals: annex.portals,
     rooms: annex.rooms,
     hall: annex.hall,
     lounge: annex.lounge,
@@ -365,11 +391,11 @@ function wallColliders(w) {
   return out;
 }
 
-/** A shelving run (same shape as planStore's faces) with every bay given to `section`. */
+/** A shelving run (same shape as planStore's faces) with every bay given to `section`, if one. */
 function shelfRun(kind, origin, t, n, length, section, bayW = DIM.BAY_W) {
   const bays = Math.max(1, Math.floor(length / bayW + 1e-6));
   const perRow = Math.floor((bayW - 0.06) / DIM.SLOT_PITCH);
-  const bayList = Array.from({ length: bays }, (_, index) => ({ section, index }));
+  const bayList = section ? Array.from({ length: bays }, (_, index) => ({ section, index })) : []; // (filled in later)
   return { kind, origin, t, n, length, bays, bayW, perRow, bayList };
 }
 
@@ -413,9 +439,11 @@ const square = (x, z, half) => ({ minX: x - half, maxX: x + half, minZ: z - half
  * - the wing it leads to: a lounge across the front third (couches facing a projector
  *   screen on the far wall) and Streams behind it, through an archway;
  * - the Extras back room, behind the back wall's right-hand corner.
- * Streams and Extras have empty "coming soon" shelving until their catalogs exist.
+ * Streams is stocked from its own catalog (`streamsArea`, from addArea() in catalog.js)
+ * and runs further back when that needs more shelf than the sales floor's depth gives.
+ * Without one, and in Extras for now, the shelving is empty "coming soon" stock.
  */
-function planAnnex(d) {
+function planAnnex(d, streamsArea) {
   const { W, D, hall: h, backDoor: bd } = d;
   const H = DIM.OPENING_H;
   const WU = DIM.WALL_UNIT;
@@ -448,9 +476,19 @@ function planAnnex(d) {
   add(wall('lounge', 'x', wx1, lz0, D / 2, -1, { openings: [{ from: h.z0, to: h.z1, h: H }] }));
   add(wall('lounge', 'z', D / 2, wx0, wx1, -1));
   add(wall('lounge', 'z', lz0, wx0, wx1, 1, { openings: archOpening, thick: DIVIDER }));
-  const sWest = add(wall('streams', 'x', wx0, -D / 2, sz1, 1));
-  const sEast = add(wall('streams', 'x', wx1, -D / 2, sz1, -1));
-  const sBack = add(wall('streams', 'z', -D / 2, wx0, wx1, 1));
+  // Streams reaches back at least as far as the sales floor, and a bay further at a time
+  // until its tapes fit
+  const archive = archiveGroups(streamsArea);
+  const need = archive.reduce((n, g) => n + g.bays, 0);
+  let shelving;
+  for (let k = 0; k <= MAX_STREAMS_GROWTH; k++) {
+    shelving = streamsShelving(wx0, wx1, -D / 2 - k * DIM.BAY_W, sz1);
+    if (shelving.bays >= need) break;
+  }
+  add(shelving.west);
+  add(shelving.east);
+  add(shelving.back);
+  const sz0 = shelving.back.at;
   add(wall('streams', 'z', sz1, wx0, wx1, -1, { openings: archOpening, thick: DIVIDER }));
 
   // Extras, behind the back wall
@@ -491,26 +529,50 @@ function planAnnex(d) {
   // ---- Streams: wall shelving on three sides and a gondola down the middle
   const soon = (key, color) => ({ key, label: 'Coming Soon', color, kind: 'placeholder' });
   const sSoon = soon('streams-soon', '#b388ff');
-  const streamFaces = [
-    wallShelf(sWest, -D / 2 + WU + 0.05, sz1 - 0.1, sSoon),
-    wallShelf(sBack, wx0 + WU + 0.05, wx1 - WU - 0.05, sSoon),
-    wallShelf(sEast, -D / 2 + WU + 0.05, sz1 - 0.1, sSoon),
-  ];
-  const gx = (wx0 + wx1) / 2;
-  const gzFront = sz1 - 1.6;
-  const gBays = Math.max(1, Math.min(6, Math.floor((gzFront - 2 * DIM.ENDCAP - (-D / 2 + WU + 2.1)) / DIM.BAY_W)));
-  const gzBack = gzFront - gBays * DIM.BAY_W - 2 * DIM.ENDCAP;
-  const streamGondola = { x: gx, zFront: gzFront, zBack: gzBack };
-  streamFaces.push(...gondolaRuns(gx, gzFront, gzBack, sSoon));
-  colliders.push({ minX: gx - DIM.G_DEPTH / 2, maxX: gx + DIM.G_DEPTH / 2, minZ: gzBack, maxZ: gzFront });
+  const { chain, endcaps, gondola: g } = shelving;
+  const stocked = archive.length > 0;
+  const sections = [];
+  if (stocked) {
+    // a section per year (the catalog's aisles, in its order), each in upload order so a
+    // playthrough's parts read left to right; spare bays go to the busiest years
+    shareBays(archive, shelving.bays - need);
+    for (const grp of archive) {
+      const slots = grp.bays * SLOTS_PER_BAY;
+      sections.push({
+        key: grp.aisle.id, label: grp.aisle.name, color: grp.aisle.color, kind: 'genre', bays: grp.bays,
+        items: withCopies(grp.items.slice(-slots), slots, MAX_COPIES), // (too many: keep the newest)
+      });
+    }
+    snakeBays(chain, sections);
+    // the gondola's ends: the newest upload faces the archway, a clerk's pick the back
+    const videos = streamsArea.videos;
+    const latest = videos.reduce((a, b) => (String(b.publishedAt) > String(a.publishedAt) ? b : a));
+    const pick = videos[Math.floor(rng(hash(videos.map((v) => v.id).join('|')) || 1)() * videos.length)];
+    for (const [face, key, label, color, video] of [
+      [endcaps.front, 'streams-latest', 'Latest Stream', '#ff2e88', latest],
+      [endcaps.rear, 'streams-pick', 'Clerk Pick', '#ffc61a', pick],
+    ]) {
+      const sec = { key, label, color, kind: 'endcap', bays: 1, items: Array(face.perRow * DIM.SHELF_COUNT).fill(video) };
+      face.bayList.push({ section: sec, index: 0 });
+      sections.push(sec);
+    }
+  }
+  // whatever's left over (all of it, before there's a catalog) is "coming soon" stock
+  for (const f of [...chain, endcaps.front, endcaps.rear]) for (let i = f.bayList.length; i < f.bays; i++) f.bayList.push({ section: sSoon, index: i });
+  const streamFaces = [...shelving.walls, ...chain.filter((f) => f.kind === 'gondola'), endcaps.front, endcaps.rear];
+  for (const f of streamFaces) f.room = 'streams';
+  colliders.push({ minX: g.x - DIM.G_DEPTH / 2, maxX: g.x + DIM.G_DEPTH / 2, minZ: g.zBack, maxZ: g.zFront });
   const streams = {
-    id: 'streams', x0: wx0, x1: wx1, z0: -D / 2, z1: sz1,
-    faces: streamFaces, gondolas: [streamGondola],
-    // cardboard boxes of stock waiting to be shelved
-    boxes: [
-      { x: wx0 + WU + 0.36, z: -D / 2 + WU + 0.36, seed: 11 },
-      { x: gx, z: gzBack - 0.55, seed: 23 },
-    ],
+    id: 'streams', x0: wx0, x1: wx1, z0: sz0, z1: sz1,
+    faces: streamFaces, gondolas: [g], stocked, sections,
+    // cardboard boxes of stock waiting to be shelved (once it's shelved, just one stack,
+    // against the partition where it's in nobody's way)
+    boxes: stocked
+      ? [{ x: wx0 + 2.0, z: sz1 - 0.36, seed: 11 }]
+      : [
+        { x: wx0 + WU + 0.36, z: sz0 + WU + 0.36, seed: 11 },
+        { x: g.x, z: g.zBack - 0.55, seed: 23 },
+      ],
   };
 
   // ---- Extras: shelving round the walls
@@ -523,7 +585,7 @@ function planAnnex(d) {
       wallShelf(eWest, ez0 + WU + 0.05, ez1 - 0.05, eSoon),
       wallShelf(eEast, ez0 + WU + 0.05, ez1 - 0.05, eSoon),
       wallShelf(eFront, ex0 + WU + 0.05, bd.x0 - 0.15, eSoon),
-    ],
+    ].map((f) => ({ ...f, room: 'extras' })),
     gondolas: [],
     boxes: [
       { x: ex0 + WU + 0.36, z: ez0 + WU + 0.36, seed: 37 },
@@ -536,7 +598,86 @@ function planAnnex(d) {
     for (const b of room.boxes) colliders.push(square(b.x, b.z, 0.31));
   }
 
-  return { walls, colliders, rooms: [main, hall, lounge, streams, extras], hall, lounge, streams, extras };
+  // The doorways between rooms, as thin boxes (y from 0 to H). A room can only be seen
+  // through one of these, which is what lets the renderer skip the ones out of view.
+  const P = 0.1;
+  const portals = [
+    { rooms: ['main', 'hall'], x0: hx1 - P, x1: hx1 + P, z0: h.z0, z1: h.z1 },
+    { rooms: ['hall', 'lounge'], x0: hx0 - P, x1: hx0 + P, z0: h.z0, z1: h.z1 },
+    { rooms: ['lounge', 'streams'], x0: arch.x0, x1: arch.x1, z0: zDiv - P, z1: zDiv + P },
+    { rooms: ['main', 'extras'], x0: bd.x0, x1: bd.x1, z0: ez1 - P, z1: ez1 + P },
+  ].map((p) => ({ ...p, y0: 0, y1: H }));
+
+  const slots = fillSlots(stocked ? [...chain, endcaps.front, endcaps.rear] : []);
+  return { walls, colliders, slots, portals, rooms: [main, hall, lounge, streams, extras], hall, lounge, streams, extras };
+}
+
+/** Which room is the point in? (The sales floor if it's in none, e.g. out on the street.) */
+export function roomAt(plan, p, slack = 0.1) {
+  const inside = (r) => p.x > r.x0 - slack && p.x < r.x1 + slack && p.z > r.z0 - slack && p.z < r.z1 + slack;
+  return plan.rooms.find((r) => r.id !== 'main' && inside(r))?.id || 'main';
+}
+
+/**
+ * The rooms that could be in view from `at`: the one it's in, plus any reached through
+ * a chain of doorways that `sees(portal)` says are in view (the camera frustum test).
+ * Generous rather than exact: a room is only left out when no doorway to it is in view.
+ */
+export function visibleRooms(plan, at, sees) {
+  const seen = new Set([roomAt(plan, at)]);
+  const queue = [...seen];
+  while (queue.length) {
+    const room = queue.shift();
+    for (const p of plan.portals) {
+      const k = p.rooms.indexOf(room);
+      if (k < 0) continue;
+      const next = p.rooms[1 - k];
+      if (seen.has(next) || !sees(p)) continue;
+      seen.add(next);
+      queue.push(next);
+    }
+  }
+  return seen;
+}
+
+const MAX_STREAMS_GROWTH = 25; // bays' worth (30 m): past that, the oldest tapes don't fit
+const uploadOrder = (a, b) => String(a.publishedAt).localeCompare(String(b.publishedAt)) || a.id.localeCompare(b.id);
+
+/** An archive area's tapes grouped by aisle (in the catalog's order), oldest upload first. */
+function archiveGroups(area) {
+  if (!area?.videos?.length) return [];
+  const byAisle = new Map(area.aisles.map((a) => [a.id, []]));
+  for (const v of area.videos) byAisle.get(v.aisle)?.push(v);
+  return area.aisles
+    .map((aisle) => ({ aisle, items: byAisle.get(aisle.id).sort(uploadOrder) }))
+    .filter((g) => g.items.length)
+    .map((g) => ({ ...g, bays: Math.ceil(g.items.length / SLOTS_PER_BAY) }));
+}
+
+/**
+ * Streams' walls and shelving for a room from z = sz0 back to sz1 (the lounge partition).
+ * `chain` is every bay in reading order, left to right all the way round: the gondola's
+ * east side (you meet it first, coming through the archway), round its far end to the
+ * west side, then the west, back and east walls, ending beside the archway.
+ */
+function streamsShelving(wx0, wx1, sz0, sz1) {
+  const WU = DIM.WALL_UNIT;
+  const west = wall('streams', 'x', wx0, sz0, sz1, 1);
+  const east = wall('streams', 'x', wx1, sz0, sz1, -1);
+  const back = wall('streams', 'z', sz0, wx0, wx1, 1);
+  const walls = [
+    wallShelf(west, sz0 + WU + 0.05, sz1 - 0.1, null),
+    wallShelf(back, wx0 + WU + 0.05, wx1 - WU - 0.05, null),
+    wallShelf(east, sz0 + WU + 0.05, sz1 - 0.1, null),
+  ];
+  const x = (wx0 + wx1) / 2;
+  const zFront = sz1 - 1.6;
+  const bays = Math.max(1, Math.min(6, Math.floor((zFront - 2 * DIM.ENDCAP - (sz0 + WU + 2.1)) / DIM.BAY_W)));
+  const zBack = zFront - bays * DIM.BAY_W - 2 * DIM.ENDCAP;
+  const [gWest, gEast, front, rear] = gondolaRuns(x, zFront, zBack, null);
+  const chain = [gEast, gWest, ...walls];
+  for (const f of chain) f.rows = TOP_DOWN;
+  return { west, east, back, walls, chain, endcaps: { front, rear }, gondola: { x, zFront, zBack }, bays: chain.reduce((n, f) => n + f.bays, 0) };
 }
 
 /**
