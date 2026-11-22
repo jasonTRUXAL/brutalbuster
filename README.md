@@ -86,6 +86,14 @@ The prize corner is by the entrance: four capsule-toy (gacha) machines along the
 
 Every capsule and jackpot fires a `bb:prize` browser event. The always-win reward system (what's actually inside) will plug in there.
 
+### The rooms off the sales floor
+
+- **The lounge.** A hallway in the left wall, near the front (under the pink **LOUNGE** sign), leads to a living-room-style lounge: two couches facing a projector screen, with curtains, a popcorn machine and a floor lamp. The screen runs a "coming attractions" slideshow of box art. It's decorative for now, but it's built so a video can play on that screen later.
+- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams, the future home of the live-stream archive.
+- **Extras.** A door in the back right-hand corner, past New Releases, leads to the Extras back room.
+
+Streams and Extras have empty **Coming Soon** shelves (and a few boxes of stock) until their videos are hooked up. See [docs/roadmap.md](docs/roadmap.md).
+
 ## How the store is built
 
 The building sizes itself to the catalog. `src/layout.js` picks the number and length of aisles needed to hold every title, then fills them:
@@ -94,6 +102,7 @@ The building sizes itself to the catalog. `src/layout.js` picks the number and l
 - **The back wall is New Releases**: the newest uploads, several copies each.
 - **Endcaps** each spotlight one random tape.
 - **Leftover shelf space** becomes themed sections (Staff Picks, Cult Corner, Late Night…) stocked with a random mix of the catalog.
+- **The other rooms** (hallway, lounge, Streams, Extras) are placed relative to the sales floor, so they move with it as it grows.
 
 Everything is generated in code. There are no 3D models or image files: box art, carpet, signage and neon are all painted on `<canvas>`. All covers are packed into a few texture atlases and drawn with GPU instancing, so even a few thousand tapes take only a handful of draw calls.
 
@@ -101,8 +110,11 @@ Everything is generated in code. There are no 3D models or image files: box art,
 src/
   main.js        app state machine, render loop, picking
   catalog-schema.js  the catalog.json contract (shared with the sync script)
-  layout.js      floor-plan solver: store size, shelf runs, which tape goes where
-  store.js       room, shelving, signs, checkout counter, entrance, lights
+  layout.js      floor-plan solver: store size, shelf runs, which tape goes where, the other rooms and every wall
+  store.js       the sales floor: room, shelving, signs, checkout counter, entrance, lights
+  rooms.js       the rooms off it: hallway, lounge and Streams wing, Extras back room
+  lounge.js      the lounge: couches, projector, screen and its slideshow
+  fixtures.js    building blocks shared by both: batching, walls, floors, shelving, signs, posters
   tapes.js       instanced VHS cases + cover sleeves
   atlas.js       cover texture atlas
   covers.js      box art generator (front, back, spine) + thumbnail loading
@@ -151,6 +163,7 @@ It's a static site: `npm run build` produces a `dist/` folder you can host anywh
 
 ## What's next
 
-- **Viewing experience.** Right now **Watch now** opens a YouTube embed inside a CRT-styled frame. Possible next steps: play the tape on a TV inside the 3D store, add a "rewinding…" insert animation, or build a couch-and-TV viewing room.
+- **Viewing experience.** Right now **Watch now** opens a YouTube embed inside a CRT-styled frame. Possible next steps: play the tape on the lounge's projector screen, or add a "rewinding…" insert animation.
+- **Stock Streams and Extras** from their own channels or playlists.
 - Ambient store audio (fluorescent hum, muzak, the clack of a case).
 - A rentals counter that remembers what you've watched.

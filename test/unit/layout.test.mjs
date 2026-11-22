@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { planStore, slotMatrix } from '../../src/layout.js';
+import { planStore, slotMatrix, walkFrom } from '../../src/layout.js';
 import { DIM } from '../../src/config.js';
 import { catalogOf } from './helpers.mjs';
 
@@ -57,6 +57,57 @@ for (const n of SIZES) {
 
     await t.test('one hanging sign per aisle', () => {
       assert.equal(plan.aisleSigns.length, plan.K + 1);
+    });
+
+    await t.test('every room can be walked to from the door, and nowhere outside', () => {
+      const { hall, lounge, streams, extras } = plan;
+      const walk = walkFrom(plan.colliders, plan.bounds, plan.spawn);
+      const mid = (r) => ({ x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2 });
+      const spots = {
+        hallway: mid(hall),
+        'lounge, by the hallway': { x: lounge.x1 - 1.0, z: mid(lounge).z },
+        'lounge, in front of the screen': { x: lounge.x0 + 1.0, z: lounge.screen.z },
+        'Streams, by the archway': { x: (lounge.arch.x0 + lounge.arch.x1) / 2, z: streams.z1 - 0.6 },
+        'Streams, far corner': { x: streams.x0 + 1.5, z: streams.z0 + 1.5 },
+        Extras: mid(extras),
+        'Extras, far corner': { x: extras.x0 + 1.2, z: extras.z0 + 1.4 },
+      };
+      for (const [name, p] of Object.entries(spots)) assert.ok(walk.reaches(p), `can't walk to the ${name}`);
+      const outside = {
+        'between the buildings, by the street': { x: -plan.W / 2 - DIM.HALL_LEN / 2, z: plan.D / 2 - DIM.HALL_FRONT / 2 },
+        'behind the store, beside Extras': { x: (-plan.W / 2 + extras.x0) / 2, z: -plan.D / 2 - 1.5 },
+      };
+      for (const [name, p] of Object.entries(outside)) {
+        assert.ok(walk.open(p), `${name}: the test spot should be clear of walls`);
+        assert.ok(!walk.reaches(p), `walked out of the building, ${name}`);
+      }
+    });
+
+    await t.test('rooms sit side by side without overlapping', () => {
+      const rooms = plan.rooms;
+      for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
+        const a = rooms[i];
+        const b = rooms[j];
+        const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0);
+        const oz = Math.min(a.z1, b.z1) - Math.max(a.z0, b.z0);
+        assert.ok(ox <= 1e-6 || oz <= 1e-6, `${a.id} overlaps ${b.id}`);
+      }
+    });
+
+    await t.test('shelving in the new rooms fits inside them', () => {
+      for (const room of [plan.streams, plan.extras]) {
+        for (const f of room.faces) {
+          assert.ok(f.bays * f.bayW <= f.length + 1e-6, `${room.id}: ${f.bays} bays don't fit ${f.length.toFixed(2)}m`);
+          const back = f.kind === 'wall' ? DIM.WALL_UNIT : 0;
+          for (const [x, z] of [
+            [f.origin.x, f.origin.z],
+            [f.origin.x + f.t.x * f.length, f.origin.z + f.t.z * f.length],
+            [f.origin.x - f.n.x * back, f.origin.z - f.n.z * back],
+          ]) {
+            assert.ok(x >= room.x0 - 1e-6 && x <= room.x1 + 1e-6 && z >= room.z0 - 1e-6 && z <= room.z1 + 1e-6, `${room.id} shelf pokes out at ${x.toFixed(2)},${z.toFixed(2)}`);
+          }
+        }
+      }
     });
   });
 }

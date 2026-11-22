@@ -22,7 +22,7 @@ Each area can change independently as long as it keeps its contract with the oth
 | Workstream | Owns | Contract with the rest |
 |---|---|---|
 | **Content pipeline** | `scripts/`, `store.config.json`, `catalog.overrides.json` | Writes `public/catalog.json` per `docs/catalog-format.md`, validated by `src/catalog-schema.js` |
-| **The store (world)** | `layout.js`, `store.js`, `tapes.js`, `atlas.js`, `covers.js`, `textures.js`, `crt.js`, `config.js`, `prizes.js` (prize-corner props) | Reads the normalized catalog; exposes `plan.slots`, `TapeShelves` and `store.colliders` to `main.js` |
+| **The store (world)** | `layout.js`, `store.js`, `fixtures.js` (shared building blocks), `rooms.js` (hallway, Streams, Extras), `lounge.js`, `tapes.js`, `atlas.js`, `covers.js`, `textures.js`, `crt.js`, `config.js`, `prizes.js` (prize-corner props) | Reads the normalized catalog; exposes `plan.slots`, `TapeShelves` and `store.colliders` to `main.js` |
 | **PS1 Mode** | `ps1.js` | Draws any scene in the PS1 style. Relies on two material flags set by the world (see Conventions); `main.js` and `inspect.js` call its render methods |
 | **Interaction and viewing** | `main.js` (state machine), `controls.js`, `inspect.js`, `ui.js`, `style.css`, `index.html` | Modes are `splash`, `walk`, `paused`, `inspect`, `watch`, `directory`, `play`. The next big feature (the viewing experience) lives here |
 | **Prize-corner games** | `arcade.js` (hit-testing, crouch/sit camera), `gacha.js`, `luckyhit.js`, `luckyhit-physics.js`, `arcade-ui.js` | Games get their props from `prizes.js`; every win fires a `bb:prize` window event, which is where the reward system plugs in |
@@ -32,14 +32,14 @@ The shared, environment-neutral modules are `src/catalog-schema.js` (imported by
 
 ## How a frame of the store comes together
 
-`main.js` boots in this order: load fonts, then the catalog (`catalog.js`), then `planStore()` (`layout.js`: sizes the building to the catalog, assigns every tape a slot). Then `CoverAtlas` paints every box cover into a few 2048² canvases. Then `TapeShelves` draws all tapes with 1 instanced draw call for the cases plus 1 per atlas page, and `buildStore()` merges the static fixtures per material (`Batcher`). Thumbnails stream in afterwards and repaint atlas cells. `atlas.flush()` uploads them, throttled.
+`main.js` boots in this order: load fonts, then the catalog (`catalog.js`), then `planStore()` (`layout.js`: sizes the building to the catalog, assigns every tape a slot). The same plan places the rooms off the sales floor (hallway, lounge, Streams, Extras) relative to it, and lists every wall (`plan.walls`, with their openings) and every collider. Then `CoverAtlas` paints every box cover into a few 2048² canvases. Then `TapeShelves` draws all tapes with 1 instanced draw call for the cases plus 1 per atlas page, and `buildStore()` merges the static fixtures per material (`Batcher` in `fixtures.js`). It calls `buildAnnex()` (`rooms.js`) for the other rooms, each batched into its own group so a room out of view is skipped. Furniture footprints live in the plan, not the builders, so `walkFrom()` (a flood fill in `layout.js`) can prove in the tests that every room can be walked to and the building is sealed. Thumbnails stream in afterwards and repaint atlas cells. `atlas.flush()` uploads them, throttled.
 
 The picked-up tape is rendered in a separate overlay scene (`inspect.js`) over the dimmed store. The tape on the shelf is hidden by zero-scaling its instance.
 
 ## Conventions
 
 - **Units are metres.** Every physical dimension lives in `DIM` in `config.js`, and brand colours in `BRAND`. Don't hard-code sizes elsewhere.
-- **Keep draw calls low.** Add many repeated objects as instances or through the `Batcher`, never as one mesh each. Check with `renderer.info.render.calls` (the sample store is ~20).
+- **Keep draw calls low.** Add many repeated objects as instances or through the `Batcher`, never as one mesh each. Plain-coloured props can share one vertex-coloured material through `Batcher.paint()` (the lounge does). Check with `renderer.info.render.calls`: the live store is about 100 from the door (70 of them the sales floor).
 - **Deterministic.** Any randomness is seeded (`rng(hash(...))` from `util.js`) so the store looks the same on every load and tests are stable.
 - **Canvas art is drawn on a design grid.** Covers are laid out on 160×280 and scaled by `s = width / 160`, so one function draws both the atlas thumbnail and the 512px held tape. Webfonts must be loaded (`loadFonts()`) before any canvas text is drawn.
 - **Textures go through `toTexture()`.** It handles sRGB, anisotropy and mipmaps.

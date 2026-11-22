@@ -26,6 +26,19 @@ export const DIM = {
   BACK_AISLE: 2.4,
   CEILING: 3.4,
 
+  // Annex rooms (docs/roadmap.md). A hallway off the left wall leads to a wing that's a
+  // lounge (front third) and Streams (back two-thirds). A door in the back wall's
+  // right-hand corner leads to the Extras back room.
+  HALL_W: 2.2,
+  HALL_LEN: 1.6,
+  HALL_FRONT: 1.6, // plain wall left between the hallway and the front window (Lucky Hit)
+  OPENING_H: 2.4, // doorways stop under the wall stripe
+  WING_W: 7.2,
+  ARCH_W: 2.2, // lounge → Streams
+  BACK_DOOR_W: 1.4,
+  EXTRAS_W: 6.0,
+  EXTRAS_D: 5.6,
+
   // Player
   EYE: 1.62,
   RADIUS: 0.28,

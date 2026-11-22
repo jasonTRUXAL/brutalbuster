@@ -24,14 +24,20 @@ function computeDims(K, M) {
   const zFront = D / 2 - DIM.FRONT;
   const zBack = zFront - gLen;
   const wallStartZ = -D / 2 + DIM.WALL_UNIT + 0.05;
-  const leftLen = D / 2 - 1.0 - wallStartZ;
+  // The hallway to the lounge cuts the front of the left wall; the Extras door cuts the
+  // right-hand end of the back wall. The shelving stops short of both.
+  const hall = { z1: D / 2 - DIM.HALL_FRONT, z0: D / 2 - DIM.HALL_FRONT - DIM.HALL_W };
+  const backDoor = { x1: W / 2 - DIM.WALL_UNIT - 0.05, x0: W / 2 - DIM.WALL_UNIT - 0.05 - DIM.BACK_DOOR_W };
+  const backStartX = -W / 2 + DIM.WALL_UNIT + 0.05;
+  const leftLen = hall.z0 - 0.15 - wallStartZ; // (room for the door casing)
   const rightLen = zFront - wallStartZ;
-  const backLen = W - 2 * DIM.WALL_UNIT - 0.1;
+  const backLen = backDoor.x0 - 0.15 - backStartX;
   const leftBays = Math.floor(leftLen / DIM.BAY_W);
   const rightBays = Math.floor(rightLen / DIM.BAY_W);
   const backBays = Math.floor(backLen / DIM.BAY_W);
   return {
-    K, M, W, D, gLen, zFront, zBack, wallStartZ, leftLen, rightLen, backLen, leftBays, rightBays, backBays,
+    K, M, W, D, gLen, zFront, zBack, wallStartZ, leftLen, rightLen, backLen, backStartX, leftBays, rightBays, backBays,
+    hall, backDoor,
     genreBays: 2 * K * M + leftBays + rightBays,
   };
 }
@@ -188,7 +194,7 @@ export function planStore(catalog) {
   // Back wall — New Releases.
   const backZ = -D / 2 + DIM.WALL_UNIT;
   const back = addFace({
-    kind: 'wall', origin: { x: -dims.backLen / 2, z: backZ }, t: { x: 1, z: 0 }, n: { x: 0, z: 1 },
+    kind: 'wall', origin: { x: dims.backStartX, z: backZ }, t: { x: 1, z: 0 }, n: { x: 0, z: 1 },
     length: dims.backLen, bays: dims.backBays, bayW: DIM.BAY_W,
   });
   const newest = videos
@@ -270,9 +276,10 @@ export function planStore(catalog) {
   const colliders = [];
   const box = (minX, maxX, minZ, maxZ) => colliders.push({ minX, maxX, minZ, maxZ });
   for (const g of gondolas) box(g.x - DIM.G_DEPTH / 2, g.x + DIM.G_DEPTH / 2, zBack, zFront);
-  box(-W / 2, -W / 2 + DIM.WALL_UNIT, -D / 2, D / 2); // left wall unit
+  box(-W / 2, -W / 2 + DIM.WALL_UNIT, -D / 2, dims.hall.z0 - 0.15); // left wall unit, up to the hallway
   box(W / 2 - DIM.WALL_UNIT, W / 2, -D / 2, zFront); // right wall unit
-  box(-W / 2, W / 2, -D / 2, -D / 2 + DIM.WALL_UNIT); // back wall unit
+  box(-W / 2, dims.backDoor.x0, -D / 2, -D / 2 + DIM.WALL_UNIT); // back wall unit, either side of the Extras door
+  box(dims.backDoor.x1, W / 2, -D / 2, -D / 2 + DIM.WALL_UNIT);
 
   // Checkout counter + staff area (front-right corner)
   // (leaves a cross-aisle in front of the gondolas so the right-hand aisle stays open)
@@ -288,12 +295,302 @@ export function planStore(catalog) {
   const doorX = (-W / 2 + DIM.WALL_UNIT + (counter.x - counter.depth / 2)) / 2;
   const door = { x: doorX, width: 1.9, height: 2.35 };
 
+  // The rooms off the sales floor, and every wall in the building.
+  const annex = planAnnex(dims);
+  colliders.push(...annex.colliders);
+  const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+  for (const r of annex.rooms) {
+    bounds.minX = Math.min(bounds.minX, r.x0);
+    bounds.maxX = Math.max(bounds.maxX, r.x1);
+    bounds.minZ = Math.min(bounds.minZ, r.z0);
+    bounds.maxZ = Math.max(bounds.maxZ, r.z1);
+  }
+
   return {
     W, D, K, M, zFront, zBack, dims,
     faces, slots, sections, newSection, endcapSections, gondolas, aisleSigns, colliders,
     counter, door,
+    walls: annex.walls,
+    rooms: annex.rooms,
+    hall: annex.hall,
+    lounge: annex.lounge,
+    streams: annex.streams,
+    extras: annex.extras,
     spawn: { x: doorX, z: D / 2 - 1.3, yaw: 0 },
-    bounds: { minX: -W / 2, maxX: W / 2, minZ: -D / 2, maxZ: D / 2 },
+    // walls do the real work; this just keeps the player inside the building's footprint
+    bounds,
+  };
+}
+
+// ------------------------------------------------------------------ annex rooms
+
+const WALL_T = 0.2; // collider thickness behind an outside wall
+const DIVIDER = 0.12; // the lounge / Streams partition
+
+/**
+ * A straight wall. `axis` is the coordinate that's constant along it ('x': the wall runs
+ * along z at x = `at`; 'z': it runs along x at z = `at`), from `from` to `to`. `side`
+ * (±1) is the way it faces along that axis, into its room. `openings` are spans
+ * { from, to, h } that are open from the floor up to height h.
+ */
+function wall(room, axis, at, from, to, side, { openings = [], thick = WALL_T, height = DIM.CEILING, draw = true } = {}) {
+  return { room, axis, at, from, to, side, openings, thick, height, draw };
+}
+
+/** A wall split into solid spans and openings, in order along it. */
+export function wallSpans(w) {
+  const spans = [];
+  let s = w.from;
+  for (const o of [...w.openings].sort((a, b) => a.from - b.from)) {
+    if (o.from > s) spans.push({ from: s, to: o.from, solid: true });
+    spans.push({ from: o.from, to: o.to, solid: false, h: o.h });
+    s = o.to;
+  }
+  if (s < w.to) spans.push({ from: s, to: w.to, solid: true });
+  return spans;
+}
+
+/** Colliders for a wall's solid spans: a slab just behind its face, run past the wall's
+ *  ends (not past an opening's edges) so corners are sealed. */
+function wallColliders(w) {
+  const out = [];
+  const c0 = w.side > 0 ? w.at - w.thick : w.at;
+  const c1 = w.side > 0 ? w.at : w.at + w.thick;
+  for (const sp of wallSpans(w)) {
+    if (!sp.solid) continue;
+    const a = sp.from - (sp.from === w.from ? WALL_T : 0);
+    const b = sp.to + (sp.to === w.to ? WALL_T : 0);
+    out.push(w.axis === 'x' ? { minX: c0, maxX: c1, minZ: a, maxZ: b } : { minX: a, maxX: b, minZ: c0, maxZ: c1 });
+  }
+  return out;
+}
+
+/** A shelving run (same shape as planStore's faces) with every bay given to `section`. */
+function shelfRun(kind, origin, t, n, length, section, bayW = DIM.BAY_W) {
+  const bays = Math.max(1, Math.floor(length / bayW + 1e-6));
+  const perRow = Math.floor((bayW - 0.06) / DIM.SLOT_PITCH);
+  const bayList = Array.from({ length: bays }, (_, index) => ({ section, index }));
+  return { kind, origin, t, n, length, bays, bayW, perRow, bayList };
+}
+
+/** Wall shelving against wall `w`, between `a` and `b` along it. */
+function wallShelf(w, a, b, section) {
+  const n = w.axis === 'x' ? { x: w.side, z: 0 } : { x: 0, z: w.side };
+  const t = { x: n.z, z: -n.x }; // the viewer's right, facing the shelf
+  const front = w.at + w.side * DIM.WALL_UNIT;
+  const start = (w.axis === 'x' ? t.z : t.x) > 0 ? a : b;
+  const origin = w.axis === 'x' ? { x: front, z: start } : { x: start, z: front };
+  return shelfRun('wall', origin, t, n, b - a, section);
+}
+
+/** The four faces of a double-sided gondola running along z. */
+function gondolaRuns(x, zFront, zBack, section) {
+  const G = DIM.G_DEPTH;
+  const E = DIM.ENDCAP;
+  const ec = G - 0.04;
+  const len = zFront - zBack - 2 * E;
+  return [
+    shelfRun('gondola', { x: x - G / 2, z: zBack + E }, { x: 0, z: 1 }, { x: -1, z: 0 }, len, section),
+    shelfRun('gondola', { x: x + G / 2, z: zFront - E }, { x: 0, z: -1 }, { x: 1, z: 0 }, len, section),
+    shelfRun('endcap', { x: x - ec / 2, z: zFront }, { x: 1, z: 0 }, { x: 0, z: 1 }, ec, section, ec),
+    shelfRun('endcap', { x: x + ec / 2, z: zBack }, { x: -1, z: 0 }, { x: 0, z: -1 }, ec, section, ec),
+  ];
+}
+
+/** Axis-aligned footprint of a wall shelving run (shelf front back to the wall). */
+function runCollider(f) {
+  const xs = [f.origin.x, f.origin.x + f.t.x * f.length, f.origin.x - f.n.x * DIM.WALL_UNIT];
+  const zs = [f.origin.z, f.origin.z + f.t.z * f.length, f.origin.z - f.n.z * DIM.WALL_UNIT];
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+}
+
+const square = (x, z, half) => ({ minX: x - half, maxX: x + half, minZ: z - half, maxZ: z + half });
+
+/**
+ * The rooms around the sales floor. All of them hang off the main store's size, so they
+ * follow it when the channel grows:
+ * - a short hallway through the left wall, near the front;
+ * - the wing it leads to: a lounge across the front third (couches facing a projector
+ *   screen on the far wall) and Streams behind it, through an archway;
+ * - the Extras back room, behind the back wall's right-hand corner.
+ * Streams and Extras have empty "coming soon" shelving until their catalogs exist.
+ */
+function planAnnex(d) {
+  const { W, D, hall: h, backDoor: bd } = d;
+  const H = DIM.OPENING_H;
+  const WU = DIM.WALL_UNIT;
+  const walls = [];
+  const add = (w) => (walls.push(w), w);
+
+  // sales floor: the shop front itself (glass and door) is built by store.js
+  add(wall('main', 'x', -W / 2, -D / 2, D / 2, 1, { openings: [{ from: h.z0, to: h.z1, h: H }] }));
+  add(wall('main', 'x', W / 2, -D / 2, D / 2, -1));
+  add(wall('main', 'z', -D / 2, -W / 2, W / 2, 1, { openings: [{ from: bd.x0, to: bd.x1, h: H }], thick: 0.02 }));
+  add(wall('main', 'z', D / 2, -W / 2, W / 2, -1, { draw: false }));
+  const main = { id: 'main', x0: -W / 2, x1: W / 2, z0: -D / 2, z1: D / 2 };
+
+  // hallway (its ceiling is the openings' height, so no wall shows above them)
+  const hx1 = -W / 2;
+  const hx0 = hx1 - DIM.HALL_LEN;
+  add(wall('hall', 'z', h.z0, hx0, hx1, 1, { height: H }));
+  add(wall('hall', 'z', h.z1, hx0, hx1, -1, { height: H }));
+  const hall = { id: 'hall', x0: hx0, x1: hx1, z0: h.z0, z1: h.z1 };
+
+  // the wing: lounge in front, Streams behind
+  const wx1 = hx0;
+  const wx0 = wx1 - DIM.WING_W;
+  const zDiv = D / 2 - D / 3;
+  const arch = { x1: wx1 - 0.35, x0: wx1 - 0.35 - DIM.ARCH_W };
+  const archOpening = [{ from: arch.x0, to: arch.x1, h: H }];
+  const lz0 = zDiv + DIVIDER / 2;
+  const sz1 = zDiv - DIVIDER / 2;
+  add(wall('lounge', 'x', wx0, lz0, D / 2, 1));
+  add(wall('lounge', 'x', wx1, lz0, D / 2, -1, { openings: [{ from: h.z0, to: h.z1, h: H }] }));
+  add(wall('lounge', 'z', D / 2, wx0, wx1, -1));
+  add(wall('lounge', 'z', lz0, wx0, wx1, 1, { openings: archOpening, thick: DIVIDER }));
+  const sWest = add(wall('streams', 'x', wx0, -D / 2, sz1, 1));
+  const sEast = add(wall('streams', 'x', wx1, -D / 2, sz1, -1));
+  const sBack = add(wall('streams', 'z', -D / 2, wx0, wx1, 1));
+  add(wall('streams', 'z', sz1, wx0, wx1, -1, { openings: archOpening, thick: DIVIDER }));
+
+  // Extras, behind the back wall
+  const ex1 = W / 2;
+  const ex0 = ex1 - DIM.EXTRAS_W;
+  const ez1 = -D / 2;
+  const ez0 = ez1 - DIM.EXTRAS_D;
+  const eFront = add(wall('extras', 'z', ez1, ex0, ex1, -1, { openings: [{ from: bd.x0, to: bd.x1, h: H }], thick: 0.02 }));
+  const eBack = add(wall('extras', 'z', ez0, ex0, ex1, 1));
+  const eWest = add(wall('extras', 'x', ex0, ez0, ez1, 1));
+  const eEast = add(wall('extras', 'x', ex1, ez0, ez1, -1));
+
+  const colliders = walls.flatMap(wallColliders);
+
+  // ---- lounge furniture (built by lounge.js; the footprints live here so the tests can
+  // check nothing blocks the way through)
+  const zc = (lz0 + D / 2) / 2;
+  const lounge = {
+    id: 'lounge', x0: wx0, x1: wx1, z0: lz0, z1: D / 2,
+    arch,
+    // the projection screen on the far wall: where a video will play one day
+    screen: { x: wx0 + 0.06, y: 1.55, z: zc, w: 3.0, h: 1.69, n: { x: 1, z: 0 } },
+    projector: { x: wx0 + 5.4, y: 3.02, z: zc },
+    sofas: [
+      { x: wx0 + 3.0, z: zc, len: 2.3, depth: 0.92 },
+      { x: wx0 + 4.5, z: zc, len: 2.3, depth: 0.92 },
+    ],
+    table: { x: wx0 + 1.95, z: zc, w: 0.55, len: 1.1 },
+    lamp: { x: wx0 + 3.75, z: D / 2 - 0.35 },
+    popcorn: { x: wx1 - 0.62, z: D / 2 - 0.62 },
+  };
+  for (const s of lounge.sofas) colliders.push({ minX: s.x - s.depth / 2, maxX: s.x + s.depth / 2, minZ: s.z - s.len / 2, maxZ: s.z + s.len / 2 });
+  const tb = lounge.table;
+  colliders.push({ minX: tb.x - tb.w / 2, maxX: tb.x + tb.w / 2, minZ: tb.z - tb.len / 2, maxZ: tb.z + tb.len / 2 });
+  colliders.push(square(lounge.lamp.x, lounge.lamp.z, 0.2));
+  colliders.push(square(lounge.popcorn.x, lounge.popcorn.z, 0.4));
+
+  // ---- Streams: wall shelving on three sides and a gondola down the middle
+  const soon = (key, color) => ({ key, label: 'Coming Soon', color, kind: 'placeholder' });
+  const sSoon = soon('streams-soon', '#b388ff');
+  const streamFaces = [
+    wallShelf(sWest, -D / 2 + WU + 0.05, sz1 - 0.1, sSoon),
+    wallShelf(sBack, wx0 + WU + 0.05, wx1 - WU - 0.05, sSoon),
+    wallShelf(sEast, -D / 2 + WU + 0.05, sz1 - 0.1, sSoon),
+  ];
+  const gx = (wx0 + wx1) / 2;
+  const gzFront = sz1 - 1.6;
+  const gBays = Math.max(1, Math.min(6, Math.floor((gzFront - 2 * DIM.ENDCAP - (-D / 2 + WU + 2.1)) / DIM.BAY_W)));
+  const gzBack = gzFront - gBays * DIM.BAY_W - 2 * DIM.ENDCAP;
+  const streamGondola = { x: gx, zFront: gzFront, zBack: gzBack };
+  streamFaces.push(...gondolaRuns(gx, gzFront, gzBack, sSoon));
+  colliders.push({ minX: gx - DIM.G_DEPTH / 2, maxX: gx + DIM.G_DEPTH / 2, minZ: gzBack, maxZ: gzFront });
+  const streams = {
+    id: 'streams', x0: wx0, x1: wx1, z0: -D / 2, z1: sz1,
+    faces: streamFaces, gondolas: [streamGondola],
+    // cardboard boxes of stock waiting to be shelved
+    boxes: [
+      { x: wx0 + WU + 0.36, z: -D / 2 + WU + 0.36, seed: 11 },
+      { x: gx, z: gzBack - 0.55, seed: 23 },
+    ],
+  };
+
+  // ---- Extras: shelving round the walls
+  const eSoon = soon('extras-soon', '#2ee6ff');
+  const extras = {
+    id: 'extras', x0: ex0, x1: ex1, z0: ez0, z1: ez1,
+    door: bd,
+    faces: [
+      wallShelf(eBack, ex0 + WU + 0.05, ex1 - WU - 0.05, eSoon),
+      wallShelf(eWest, ez0 + WU + 0.05, ez1 - 0.05, eSoon),
+      wallShelf(eEast, ez0 + WU + 0.05, ez1 - 0.05, eSoon),
+      wallShelf(eFront, ex0 + WU + 0.05, bd.x0 - 0.15, eSoon),
+    ],
+    gondolas: [],
+    boxes: [
+      { x: ex0 + WU + 0.36, z: ez0 + WU + 0.36, seed: 37 },
+      { x: ex1 - WU - 0.4, z: ez0 + 1.7, seed: 41 },
+    ],
+  };
+
+  for (const room of [streams, extras]) {
+    for (const f of room.faces) if (f.kind === 'wall') colliders.push(runCollider(f));
+    for (const b of room.boxes) colliders.push(square(b.x, b.z, 0.31));
+  }
+
+  return { walls, colliders, rooms: [main, hall, lounge, streams, extras], hall, lounge, streams, extras };
+}
+
+/**
+ * Where can a player (a circle of `radius`) walk to from `from` without going through a
+ * collider? A flood fill over a grid; the tests use it to prove every room can be
+ * reached and the building has no gaps to the outside. Returns `reaches(p)` and
+ * `open(p)` (nothing in the way at p itself).
+ */
+export function walkFrom(colliders, bounds, from, { radius = DIM.RADIUS, step = 0.1 } = {}) {
+  const nx = Math.ceil((bounds.maxX - bounds.minX) / step);
+  const nz = Math.ceil((bounds.maxZ - bounds.minZ) / step);
+  const cx = (i) => bounds.minX + (i + 0.5) * step;
+  const cz = (j) => bounds.minZ + (j + 0.5) * step;
+  const blocked = new Uint8Array(nx * nz);
+  // the edge of the footprint, then every collider grown by the radius
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    if (cx(i) < bounds.minX + radius || cx(i) > bounds.maxX - radius || cz(j) < bounds.minZ + radius || cz(j) > bounds.maxZ - radius) blocked[i + j * nx] = 1;
+  }
+  const r2 = radius * radius;
+  const clampI = (v, n) => Math.min(n - 1, Math.max(0, v));
+  for (const c of colliders) {
+    const i0 = clampI(Math.floor((c.minX - radius - bounds.minX) / step), nx);
+    const i1 = clampI(Math.ceil((c.maxX + radius - bounds.minX) / step), nx);
+    const j0 = clampI(Math.floor((c.minZ - radius - bounds.minZ) / step), nz);
+    const j1 = clampI(Math.ceil((c.maxZ + radius - bounds.minZ) / step), nz);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const dx = cx(i) - Math.min(Math.max(cx(i), c.minX), c.maxX);
+      const dz = cz(j) - Math.min(Math.max(cz(j), c.minZ), c.maxZ);
+      if (dx * dx + dz * dz < r2) blocked[i + j * nx] = 1;
+    }
+  }
+  const index = (p) => {
+    const i = Math.floor((p.x - bounds.minX) / step);
+    const j = Math.floor((p.z - bounds.minZ) / step);
+    return i < 0 || j < 0 || i >= nx || j >= nz ? -1 : i + j * nx;
+  };
+  const seen = new Uint8Array(nx * nz);
+  const start = index(from);
+  if (start >= 0 && !blocked[start]) {
+    const stack = [start];
+    seen[start] = 1;
+    while (stack.length) {
+      const k = stack.pop();
+      const i = k % nx;
+      for (const nk of [i + 1 < nx ? k + 1 : -1, i > 0 ? k - 1 : -1, k + nx < nx * nz ? k + nx : -1, k - nx]) {
+        if (nk < 0 || seen[nk] || blocked[nk]) continue;
+        seen[nk] = 1;
+        stack.push(nk);
+      }
+    }
+  }
+  return {
+    reaches: (p) => index(p) >= 0 && seen[index(p)] === 1,
+    open: (p) => index(p) >= 0 && !blocked[index(p)],
   };
 }
 

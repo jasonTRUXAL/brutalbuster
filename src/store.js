@@ -1,110 +1,18 @@
 // Builds the static store: room shell, shelving, signage, checkout, entrance and lights.
+// The rooms off the sales floor (hallway, lounge, Streams, Extras) come from rooms.js.
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { DIM, BRAND } from './config.js';
-import { bayStart, rowTopY } from './layout.js';
 import {
   carpetTexture, vctTexture, ceilingTexture, pegboardTexture, wallTexture, asphaltTexture, nightSkyTexture,
-  headerSignTexture, aisleSignTexture, neonTexture, panelTexture, toTexture,
+  aisleSignTexture, neonTexture, panelTexture, toTexture,
 } from './textures.js';
 import { coverCanvas, coverData } from './covers.js';
 import { FONT } from './fonts.js';
 import { makeCanvas, rng, shuffle } from './util.js';
 import { CrtScreen } from './crt.js';
 import { buildPrizeCorner } from './prizes.js';
-
-// ------------------------------------------------------------- geometry batching
-
-// PS1 Mode maps textures without perspective correction, which warps big polygons
-// badly (real PS1 games split them up for the same reason). Textured surfaces are
-// built from tiles about this size; it changes nothing in the normal look.
-const TILE = 0.75;
-const tiles = (size, tile = TILE) => Math.max(1, Math.ceil(size / tile - 1e-6));
-
-/** A plane split into roughly `tile`-sized squares. */
-function tiledPlane(w, h, tile = TILE) {
-  return new THREE.PlaneGeometry(w, h, tiles(w, tile), tiles(h, tile));
-}
-
-/** Rescale a BoxGeometry's UVs so textures tile at `scale` repeats per metre. */
-function scaleBoxUV(g, sx, sy, sz, scale) {
-  const uv = g.attributes.uv;
-  const { widthSegments: ws, heightSegments: hs, depthSegments: ds } = g.parameters;
-  // faces are stored in order +x, -x, +y, -y, +z, -z, each a (segments + 1)² vertex grid
-  const dims = [[sz, sy], [sz, sy], [sx, sz], [sx, sz], [sx, sy], [sx, sy]];
-  const counts = [(ds + 1) * (hs + 1), (ds + 1) * (hs + 1), (ws + 1) * (ds + 1), (ws + 1) * (ds + 1), (ws + 1) * (hs + 1), (ws + 1) * (hs + 1)];
-  let i = 0;
-  for (let f = 0; f < 6; f++) for (let k = 0; k < counts[f]; k++, i++) {
-    uv.setXY(i, uv.getX(i) * dims[f][0] * scale, uv.getY(i) * dims[f][1] * scale);
-  }
-}
-
-/** A box with per-metre UVs; textured ones are split into tiles (see TILE). */
-function boxGeo(mat, sx, sy, sz, uvScale) {
-  const g = mat.map ? new THREE.BoxGeometry(sx, sy, sz, tiles(sx), tiles(sy), tiles(sz)) : new THREE.BoxGeometry(sx, sy, sz);
-  scaleBoxUV(g, sx, sy, sz, uvScale);
-  return g;
-}
-
-class Batcher {
-  constructor() {
-    this.lists = new Map();
-  }
-  add(mat, geo) {
-    if (!this.lists.has(mat)) this.lists.set(mat, []);
-    this.lists.get(mat).push(geo);
-  }
-  box(mat, x, y, z, sx, sy, sz, uvScale = 1) {
-    const g = boxGeo(mat, sx, sy, sz, uvScale);
-    g.translate(x, y, z);
-    this.add(mat, g);
-  }
-  /** Box positioned in a prop's local space, then moved into the world by matrix `m`. */
-  boxAt(mat, m, x, y, z, sx, sy, sz, uvScale = 1) {
-    const g = boxGeo(mat, sx, sy, sz, uvScale);
-    g.translate(x, y, z);
-    g.applyMatrix4(m);
-    this.add(mat, g);
-  }
-  /** Any geometry (built in a prop's local space) moved into the world by matrix `m`. */
-  geomAt(mat, geo, m) {
-    geo.applyMatrix4(m);
-    this.add(mat, geo);
-  }
-  /** Box sized along a face's tangent (t), height, and normal (n) axes. */
-  aligned(mat, cx, cy, cz, sizeT, sizeY, sizeN, t, uvScale = 1) {
-    if (Math.abs(t.x) > 0.5) this.box(mat, cx, cy, cz, sizeT, sizeY, sizeN, uvScale);
-    else this.box(mat, cx, cy, cz, sizeN, sizeY, sizeT, uvScale);
-  }
-  build(parent) {
-    for (const [mat, list] of this.lists) {
-      const merged = mergeGeometries(list, false);
-      list.forEach((g) => g.dispose());
-      const mesh = new THREE.Mesh(merged, mat);
-      mesh.matrixAutoUpdate = false;
-      parent.add(mesh);
-    }
-    this.lists.clear();
-  }
-}
-
-const facingY = (n) => Math.atan2(n.x, n.z);
-
-function signPlane(tex, w, h, x, y, z, rotY, { additive = false, doubleSided = false } = {}) {
-  const mat = new THREE.MeshBasicMaterial({
-    map: tex,
-    transparent: additive,
-    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-    depthWrite: !additive,
-    side: doubleSided ? THREE.DoubleSide : THREE.FrontSide,
-    toneMapped: false,
-  });
-  mat.userData.decal = true; // a few mm in front of its backing board (see ps1.js)
-  const m = new THREE.Mesh(tiledPlane(w, h, 0.5), mat);
-  m.position.set(x, y, z);
-  m.rotation.y = rotY;
-  return m;
-}
+import { Batcher, tiledPlane, signPlane, batchWall, flatGeometry, buildGondolaShell, buildFace, addPoster } from './fixtures.js';
+import { buildAnnex } from './rooms.js';
 
 // ------------------------------------------------------------- store
 
@@ -116,6 +24,13 @@ export function buildStore(scene, plan, catalog) {
   const B = new Batcher();
   const animated = [];
   const extraColliders = [];
+  // Posters, the standee and the lounge screen show box art too; they're painted before
+  // thumbnails finish loading, so remember them and repaint when a tape's thumbnail arrives.
+  const art = new Map(); // video id -> [{ material, width }]
+  const trackArt = (videoId, material, width) => {
+    if (!art.has(videoId)) art.set(videoId, []);
+    art.get(videoId).push({ material, width });
+  };
 
   // ---- materials
   const mat = {
@@ -136,32 +51,20 @@ export function buildStore(scene, plan, catalog) {
   mat.peg.map.wrapS = mat.peg.map.wrapT = THREE.RepeatWrapping;
   mat.wall.map.wrapS = THREE.RepeatWrapping;
 
-  // ---- floor
+  // ---- floor and ceiling. The textures are shared with the rooms off the sales floor,
+  // so the geometry carries world-metre UVs instead of each texture repeating its own way.
+  const tex = { carpet: carpetTexture(), vct: vctTexture(), ceiling: ceilingTexture() };
+  for (const t of Object.values(tex)) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  mat.carpet = new THREE.MeshStandardMaterial({ map: tex.carpet, roughness: 0.95 });
+  mat.vct = new THREE.MeshStandardMaterial({ map: tex.vct, roughness: 0.4, metalness: 0.05 });
+  mat.ceiling = new THREE.MeshStandardMaterial({ map: tex.ceiling, roughness: 0.95 });
   const vctDepth = 3.4;
-  const carpet = carpetTexture();
-  carpet.wrapS = carpet.wrapT = THREE.RepeatWrapping;
-  carpet.repeat.set(W / 2, (D - vctDepth) / 2);
-  const floorC = new THREE.Mesh(tiledPlane(W, D - vctDepth), new THREE.MeshStandardMaterial({ map: carpet, roughness: 0.95 }));
-  floorC.rotation.x = -Math.PI / 2;
-  floorC.position.set(0, 0, -vctDepth / 2);
-  root.add(floorC);
-  const vct = vctTexture();
-  vct.wrapS = vct.wrapT = THREE.RepeatWrapping;
-  vct.repeat.set(W / 0.6, vctDepth / 0.6);
-  const floorV = new THREE.Mesh(tiledPlane(W, vctDepth), new THREE.MeshStandardMaterial({ map: vct, roughness: 0.4, metalness: 0.05 }));
-  floorV.rotation.x = -Math.PI / 2;
-  floorV.position.set(0, 0, D / 2 - vctDepth / 2);
-  root.add(floorV);
+  B.add(mat.carpet, flatGeometry(-W / 2, W / 2, -D / 2, D / 2 - vctDepth, 0, 0.5)); // one carpet tile = 2m
+  B.add(mat.vct, flatGeometry(-W / 2, W / 2, D / 2 - vctDepth, D / 2, 0, 1 / 0.6));
   B.box(mat.chrome, 0, 0.003, D / 2 - vctDepth, W, 0.006, 0.04); // transition strip
 
   // ---- ceiling with light troffers
-  const ceil = ceilingTexture();
-  ceil.wrapS = ceil.wrapT = THREE.RepeatWrapping;
-  ceil.repeat.set(W / 0.6, D / 0.6);
-  const ceiling = new THREE.Mesh(tiledPlane(W, D), new THREE.MeshStandardMaterial({ map: ceil, roughness: 0.95 }));
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.y = DIM.CEILING;
-  root.add(ceiling);
+  B.add(mat.ceiling, flatGeometry(-W / 2, W / 2, -D / 2, D / 2, DIM.CEILING, 1 / 0.6, { down: true }));
 
   const aisleXs = plan.aisleSigns.map((a) => a.x);
   const lightZs = [];
@@ -177,20 +80,8 @@ export function buildStore(scene, plan, catalog) {
   root.add(troffer);
   for (const x of aisleXs) for (const z of lightZs) B.box(mat.chrome, x, DIM.CEILING - 0.008, z, 0.66, 0.012, 1.26);
 
-  // ---- walls
-  const wallH = DIM.CEILING;
-  const wallPlane = (w, x, z, rotY) => {
-    const g = tiledPlane(w, wallH);
-    const uv = g.attributes.uv;
-    for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * w);
-    const m = new THREE.Mesh(g, mat.wall);
-    m.position.set(x, wallH / 2, z);
-    m.rotation.y = rotY;
-    root.add(m);
-  };
-  wallPlane(W, 0, -D / 2, 0);
-  wallPlane(D, -W / 2, 0, Math.PI / 2);
-  wallPlane(D, W / 2, 0, -Math.PI / 2);
+  // ---- walls, with the openings to the hallway and the Extras room
+  for (const w of plan.walls) if (w.room === 'main') batchWall(B, mat.wall, w);
 
   buildFrontWall(root, B, mat, plan);
 
@@ -208,23 +99,19 @@ export function buildStore(scene, plan, catalog) {
     for (const dx of [-0.6, 0.6]) B.box(mat.chrome, a.x + dx, (y + 0.31 + DIM.CEILING) / 2, a.z, 0.012, DIM.CEILING - y - 0.31, 0.012);
   }
 
-  // ---- neon: New Releases over the back wall
+  // ---- neon: New Releases over the back wall (centred on its shelving, which stops at the Extras door)
   const nr = neonTexture('NEW RELEASES', BRAND.yellow, { font: FONT.bungee, size: 150 });
   const nrH = 0.62;
-  root.add(signPlane(nr, nrH * nr.userData.aspect, nrH, 0, 2.86, -D / 2 + 0.03, 0, { additive: true }));
+  const nrX = plan.dims.backStartX + plan.dims.backLen / 2;
+  root.add(signPlane(nr, nrH * nr.userData.aspect, nrH, nrX, 2.86, -D / 2 + 0.03, 0, { additive: true }));
 
   // ---- checkout counter, entrance, decor
-  // Posters and the standee show box art too; they're painted before thumbnails finish
-  // loading, so remember them and repaint when a tape's thumbnail arrives.
-  const art = new Map(); // video id -> [{ material, width }]
-  const trackArt = (videoId, material, width) => {
-    if (!art.has(videoId)) art.set(videoId, []);
-    art.get(videoId).push({ material, width });
-  };
   buildCounter(root, B, mat, plan, catalog, animated);
   buildEntrance(root, B, mat, plan, catalog, extraColliders, trackArt);
   const prizes = buildPrizeCorner({ root, B, mat, plan, colliders: extraColliders, animated });
   buildPosters(root, plan, catalog, trackArt);
+  // (the annex's furniture footprints are in plan.colliders already: see planAnnex)
+  const annex = buildAnnex({ scene, root, mat, plan, catalog, trackArt, animated });
 
   B.build(root);
 
@@ -251,6 +138,7 @@ export function buildStore(scene, plan, catalog) {
     root,
     colliders: [...plan.colliders, ...extraColliders],
     prizes,
+    annex,
     update(dt, t) {
       for (const a of animated) a.update(dt, t);
     },
@@ -263,87 +151,6 @@ export function buildStore(scene, plan, catalog) {
       }
     },
   };
-}
-
-// ------------------------------------------------------------- shelving
-
-function buildGondolaShell(B, mat, g) {
-  const len = g.zFront - g.zBack;
-  const cz = (g.zFront + g.zBack) / 2;
-  const plinthH = DIM.SHELF_Y0 - 0.02;
-  B.box(mat.plinth, g.x, plinthH / 2, cz, DIM.G_DEPTH - 0.03, plinthH, len - 0.03);
-  const coreLen = len - 2 * DIM.ENDCAP;
-  const spineH = DIM.UNIT_H - plinthH;
-  B.box(mat.peg, g.x, plinthH + spineH / 2, cz, 0.04, spineH, coreLen, 1 / 0.3);
-  // endcap backs
-  for (const z of [g.zFront - DIM.ENDCAP, g.zBack + DIM.ENDCAP]) B.box(mat.peg, g.x, plinthH + spineH / 2, z, DIM.G_DEPTH, spineH, 0.03, 1 / 0.3);
-  // chrome corner posts
-  for (const sx of [-1, 1]) for (const z of [g.zFront, g.zBack]) {
-    B.box(mat.chrome, g.x + sx * (DIM.G_DEPTH / 2 - 0.012), DIM.UNIT_H / 2, z - Math.sign(z - cz) * 0.012, 0.024, DIM.UNIT_H, 0.024);
-  }
-}
-
-function buildFace(root, B, mat, face) {
-  const t = face.t;
-  const n = face.n;
-  const ox = face.origin.x;
-  const oz = face.origin.z;
-  const L = face.length;
-  const at = (along, back) => [ox + t.x * along - n.x * back, oz + t.z * along - n.z * back];
-  const plinthH = DIM.SHELF_Y0 - 0.02;
-  const isWall = face.kind === 'wall';
-
-  if (isWall) {
-    const [px, pz] = at(L / 2, DIM.WALL_UNIT / 2);
-    B.aligned(mat.plinth, px, plinthH / 2, pz, L, plinthH, DIM.WALL_UNIT - 0.02, t);
-    const [bx, bz] = at(L / 2, DIM.WALL_UNIT - 0.012);
-    const h = DIM.UNIT_H - plinthH;
-    B.aligned(mat.peg, bx, plinthH + h / 2, bz, L, h, 0.02, t, 1 / 0.3);
-  }
-
-  // shelves + price channel lips
-  const [sx, sz] = at(L / 2, DIM.SHELF_DEPTH / 2);
-  // The lip stands 4mm proud of the shelf front and covers the board's edge, so no two
-  // faces share a plane (coplanar faces flicker as the camera moves).
-  const [lx, lz] = at(L / 2, 0.004);
-  for (let row = 0; row < DIM.SHELF_COUNT; row++) {
-    const y = rowTopY(row);
-    B.aligned(mat.shelf, sx, y - 0.01, sz, L, 0.02, DIM.SHELF_DEPTH, t);
-    B.aligned(mat.lip, lx, y + 0.0065, lz, L, 0.057, 0.016, t);
-  }
-  // top cap
-  B.aligned(mat.shelf, sx, DIM.UNIT_H - 0.015, sz, L, 0.03, DIM.SHELF_DEPTH, t);
-
-  // uprights at every bay boundary
-  const edges = new Set([0, L]);
-  for (let b = 0; b <= face.bays; b++) edges.add(Math.min(L, Math.max(0, bayStart(face, b))));
-  for (const e of edges) {
-    const along = Math.min(L - 0.0125, Math.max(0.0125, e));
-    const [ux, uz] = at(along, DIM.SHELF_DEPTH / 2);
-    const h = DIM.UNIT_H - plinthH;
-    B.aligned(mat.shelf, ux, plinthH + h / 2, uz, 0.025, h, DIM.SHELF_DEPTH, t);
-  }
-
-  // header signs — one per run of consecutive bays holding the same section
-  const runs = [];
-  for (const entry of face.bayList) {
-    const last = runs[runs.length - 1];
-    if (last && last.section === entry.section && last.end === entry.index) last.end++;
-    else runs.push({ section: entry.section, start: entry.index, end: entry.index + 1 });
-  }
-  const signBack = face.kind === 'endcap' ? 0.06 : DIM.SHELF_DEPTH - 0.02;
-  for (const r of runs) {
-    const a0 = r.start === 0 && face.bays === 1 ? 0 : bayStart(face, r.start);
-    const a1 = r.end === face.bays && face.bays === 1 ? L : bayStart(face, r.end);
-    const segLen = a1 - a0 - 0.04;
-    const mid = (a0 + a1) / 2;
-    const y = DIM.UNIT_H + DIM.SIGN_H / 2 + 0.02;
-    const [cx, cz] = at(mid, signBack + 0.02);
-    B.aligned(mat.trim, cx, y, cz, segLen + 0.03, DIM.SIGN_H + 0.03, 0.04, t);
-    const [fx, fz] = at(mid, signBack - 0.003);
-    const tex = headerSignTexture(r.section.label, r.section.color, segLen, DIM.SIGN_H);
-    root.add(signPlane(tex, segLen, DIM.SIGN_H, fx, y, fz, facingY(n)));
-  }
 }
 
 // ------------------------------------------------------------- front wall + outside
@@ -577,32 +384,18 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
 // ------------------------------------------------------------- posters
 
 function buildPosters(root, plan, catalog, trackArt) {
-  const { W, D, zFront, door } = plan;
+  const { W, D, zFront, door, dims } = plan;
   const pool = shuffle(catalog.videos, rng(1234));
   if (!pool.length) return;
   let k = 0;
   const next = () => pool[k++ % pool.length];
   const ph = 0.82;
   const pw = ph * (160 / 280);
-  const poster = (x, y, z, rotY, w = pw, h = ph) => {
-    const v = next();
-    const d = coverData(v, catalog.aisleById.get(v.aisle), catalog.store);
-    const tex = toTexture(coverCanvas(d, 256));
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6 }));
-    trackArt(v.id, m.material, 256);
-    m.material.userData.thumbnail = true; // sharp in PS1 Mode
-    m.position.set(x, y, z);
-    m.rotation.y = rotY;
-    m.userData.videoId = v.id;
-    root.add(m);
-    const frame = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.05, h + 0.05), new THREE.MeshStandardMaterial({ color: 0x0c0c12 }));
-    frame.position.set(x, y, z);
-    frame.rotation.y = rotY;
-    frame.translateZ(-0.004);
-    root.add(frame);
-  };
+  const poster = (x, y, z, rotY, w = pw, h = ph) => addPoster(root, next(), catalog, trackArt, x, y, z, rotY, w, h);
   const y = 2.88;
-  for (let z = -D / 2 + 1.5; z < D / 2 - 1.2; z += 2.2) poster(-W / 2 + 0.01, y, z, Math.PI / 2);
+  // (the left wall skips the hallway, which has its neon sign over it)
+  const clearOfHall = (z) => z < dims.hall.z0 - 0.4 || z > dims.hall.z1 + 0.4;
+  for (let z = -D / 2 + 1.5; z < D / 2 - 1.2; z += 2.2) if (clearOfHall(z)) poster(-W / 2 + 0.01, y, z, Math.PI / 2);
   for (let z = -D / 2 + 1.5; z < zFront - 0.3; z += 2.2) poster(W / 2 - 0.01, y, z, -Math.PI / 2);
   // window poster beside the door, facing in (the left-hand window is behind the Lucky Hit stall)
   const big = 1.2;

@@ -127,6 +127,50 @@ test('the prize corner is in, and nothing blocks the way in', async ({ store: pa
   expect(r.pathBlockedAt, 'walkway from the door into the store').toBeNull();
 });
 
+test('the rooms off the sales floor: you can walk into each one, and they render', async ({ store: page }) => {
+  const r = await page.evaluate(async () => {
+    const { walkFrom } = await import('/src/layout.js');
+    const { store, plan } = window.__bb;
+    // every collider, including the ones the builders add (prize corner, standee...)
+    const walk = walkFrom(store.colliders, plan.bounds, plan.spawn);
+    const { lounge, streams, extras } = plan;
+    return {
+      lounge: walk.reaches({ x: lounge.x1 - 1.0, z: (lounge.z0 + lounge.z1) / 2 }),
+      screenSide: walk.reaches({ x: lounge.x0 + 1.0, z: lounge.screen.z }),
+      streams: walk.reaches({ x: (lounge.arch.x0 + lounge.arch.x1) / 2, z: streams.z1 - 0.6 }),
+      extras: walk.reaches({ x: (extras.x0 + extras.x1) / 2, z: (extras.z0 + extras.z1) / 2 }),
+      rooms: Object.keys(store.annex.groups),
+      screen: store.annex.lounge.screen?.name,
+    };
+  });
+  expect(r).toEqual({ lounge: true, screenSide: true, streams: true, extras: true, rooms: ['hall', 'lounge', 'streams', 'extras'], screen: 'lounge-screen' });
+
+  // stand behind the couches facing the screen: it draws, and the pre-show is running
+  const view = await page.evaluate(() => {
+    const bb = window.__bb;
+    const L = bb.plan.lounge;
+    bb.setMode('walk');
+    bb.controls.teleport(L.x1 - 0.6, L.screen.z, Math.PI / 2, -0.05);
+    const first = bb.store.annex.lounge.show.video?.id;
+    bb.advance(9.5); // one slide's worth
+    const gl = bb.renderer.getContext();
+    const px = new Uint8Array(4);
+    const seen = new Set();
+    for (let y = 1; y < 6; y++) for (let x = 1; x < 6; x++) {
+      gl.readPixels(Math.floor((gl.drawingBufferWidth * x) / 6), Math.floor((gl.drawingBufferHeight * y) / 6), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      seen.add(`${px[0] >> 4},${px[1] >> 4},${px[2] >> 4}`);
+    }
+    return { colours: seen.size, glError: gl.getError(), changed: bb.store.annex.lounge.show.video?.id !== first || bb.catalog.videos.length < 2 };
+  });
+  expect(view.glError).toBe(0);
+  expect(view.colours, 'distinct colours sampled across the lounge').toBeGreaterThan(6);
+  expect(view.changed, 'the screen moved on to the next tape').toBe(true);
+  await page.evaluate(() => {
+    const { controls, plan } = window.__bb;
+    controls.teleport(plan.spawn.x, plan.spawn.z, plan.spawn.yaw, -0.04); // back to the door for the next test
+  });
+});
+
 test('the 3D store actually renders', async ({ store: page }) => {
   await page.evaluate(() => window.__bb.setMode('walk'));
   const colours = await page.evaluate(() => {

@@ -5,11 +5,28 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 | # | Area | Source | Status |
 |---|---|---|---|
 | 1 | **The store** (main sales floor) | brutalmoose main channel ([youtube.com/brutalmoose](https://www.youtube.com/brutalmoose)) | ✅ Live: https://jasontruxal.github.io/brutalbuster/ |
-| 2 | **Theater room** | Plays whatever tape you pick | Proof of concept: next |
-| 3 | **Streaming archive** (a separate area you walk into) | His streaming-archive channel (link needed) | Proof of concept: next |
-| 4 | **VHS backup vault** | His VHS backup channel, possibly plus other websites for the full list | Later |
+| 2 | **The lounge** (the theater room) | Plays whatever tape you pick | Room and props built (see "New rooms"); playing videos comes later |
+| 3 | **Streams** (the streaming archive) | His streaming-archive channel (link needed) | Room built with empty "Coming Soon" shelves |
+| 4 | **Extras** | To decide | Room built with empty "Coming Soon" shelves |
+| 5 | **VHS backup vault** | His VHS backup channel, possibly plus other websites for the full list | Later (it could live in Extras) |
 
 **Proof-of-concept scope:** the store plus areas 2 and 3.
+
+## New rooms (built 2026-11-21, branch `feature/new-rooms`)
+
+The building now has rooms off the sales floor. They're placed relative to it, so they move with it when the channel grows:
+
+- **Hallway → lounge and Streams.** A short hallway through the left wall, near the front (opposite the counter), opens into a wing next door. The wing's front third is the **lounge**: two couches facing a projector screen on the far wall, plus curtains, a popcorn machine, a floor lamp and blinds on the front windows. Its back two-thirds is **Streams**, through an archway under an **ON AIR** sign.
+- **Extras.** A door in the back wall's right-hand corner (at the end of the right-hand aisle) leads to a back room behind the store.
+
+What it cost the sales floor: the hallway took the front 2 bays of left-wall shelving, and the door took 2 bays of New Releases. Every tape is still shelved (the spare bays were featured filler).
+
+The work is split into passes, each finished and approved before the next:
+
+1. **Rooms and props** ✅ (this branch). Walls, floors, lighting and furniture, with empty "Coming Soon" shelves. No new videos. The lounge screen runs a "coming attractions" slideshow of box art.
+2. **Content pipeline.** `npm run sync` writes one catalog per area (for example `public/catalogs/main.json`, `streams.json`, `extras.json`, each following [the catalog format](catalog-format.md)). Needs the Streams channel link and a decision on what Extras holds.
+3. **Stock the new shelves.** Streams shelved by date (stream VODs are long, so dates suit them better than genre aisles). Extras shelved to suit its contents. Picking up and watching works the same as on the sales floor.
+4. **A working projector.** Sit on a couch and the tape plays on the lounge screen. `plan.lounge.screen` is the screen's position and size, for laying a YouTube player over it (see "Theater room" below). `plan.lounge.sofas` are the seats.
 
 ## Prize corner (built)
 
@@ -35,12 +52,13 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 
 ## Area notes
 
-### 2. Theater room
+### 2. Theater room (the lounge)
+- **Built as props** (see "New rooms"). The screen is at `plan.lounge.screen` and the couches are at `plan.lounge.sofas`.
 - **Open question:** is this where **Watch now** leads (walk into a small theater and the tape plays on the big screen, replacing today's pop-up TV), or a separate destination (for example a screening room with a featured program)?
 - **Technical note:** a YouTube player can't be drawn inside the 3D scene as a texture (browser security rules). The usual approach is to lay the real player over the 3D screen and keep it lined up as you look around (three.js `CSS3DRenderer`), with a full-screen fallback on phones.
 
-### 3. Streaming archive
-- A "wholly separate area to enter": for example, a doorway off the main floor, or a second building across the parking lot. It has its own shelves and its own look.
+### 3. Streaming archive (Streams)
+- Built as the back two-thirds of the wing off the sales floor (see "New rooms"), with its own purple look and empty shelving for now.
 - **Needs multiple catalogs:** the config lists several sources, `npm run sync` writes one catalog per area (for example `public/catalogs/main.json` and `archive.json`, each following [the catalog format](catalog-format.md)), the layout solver runs once per area, and a door switches areas.
 - Stream VODs are long (often hours), so shelving by date or series may suit them better than genre aisles.
 - **Waiting on:** the channel link.
@@ -53,3 +71,4 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 
 - **2026-10-06:** The main store shelves the **entire** main channel, not a subset. "My response." stays on the shelves. Playlist notes and the alternative we considered are in [channel-notes.md](channel-notes.md).
 - **2026-11-04:** PS1 Mode applies to everything except the video thumbnails, as asked. The whole box front counts as "thumbnail" so titles stay readable. The choice is per browser (remembered), and off by default.
+- **2026-11-21:** New rooms. A hallway opposite the counter leads to a wing that's a lounge (front third: couches, projector) and Streams (back two-thirds). A door in the back right-hand corner leads to Extras. Built in passes: rooms and props first, then content, then the working projector.

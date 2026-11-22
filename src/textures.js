@@ -166,6 +166,31 @@ export function wallTexture() {
   return toTexture(c);
 }
 
+/** A shipping box side: kraft card, packing tape and a stencilled label. One texture = 50cm. */
+export function cardboardTexture() {
+  const S = 256;
+  const c = makeCanvas(S, S);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#b8895a';
+  ctx.fillRect(0, 0, S, S);
+  const r = rng(9);
+  for (let i = 0; i < 1400; i++) {
+    ctx.fillStyle = `rgba(${r() < 0.5 ? '90,60,30' : '230,200,160'},${0.05 + r() * 0.08})`;
+    ctx.fillRect(r() * S, r() * S, 1 + r() * 3, 1);
+  }
+  ctx.fillStyle = 'rgba(214,190,140,.85)'; // tape
+  ctx.fillRect(S / 2 - 22, 0, 44, S);
+  ctx.fillStyle = 'rgba(40,24,12,.8)';
+  ctx.font = `34px ${FONT.bebas}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('VHS', S * 0.2, S * 0.3);
+  ctx.fillText('NEW', S * 0.8, S * 0.3);
+  ctx.font = `22px ${FONT.bebas}`;
+  ctx.fillText('THIS SIDE UP', S * 0.2, S * 0.82);
+  ctx.fillText('FRAGILE', S * 0.8, S * 0.82);
+  return toTexture(c);
+}
+
 export function asphaltTexture() {
   const S = 256;
   const c = makeCanvas(S, S);
