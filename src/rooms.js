@@ -115,8 +115,8 @@ export function buildAnnex({ scene, root, mat, plan, catalog, trackArt, animated
   fitRoom('streams', streams, 'STREAMS', '#b388ff', streams.stocked ? 'LIVE ARCHIVE' : 'LIVE ARCHIVE · COMING SOON', ax);
   fitRoom('extras', extras, 'EXTRAS', BRAND.cyan, 'COMING SOON', (extras.x0 + extras.x1) / 2);
 
-  // ---- the lounge's furniture and projector
-  const loungeParts = buildLounge({ group: group.lounge, B: batch.lounge, mat, plan, catalog, animated, scene });
+  // ---- the lounge's furniture, projector and VCR
+  const loungeParts = buildLounge({ group: group.lounge, B: batch.lounge, mat, plan, animated, scene });
 
   // ---- ceiling lights: troffers like the sales floor's (the lounge has its lamp instead)
   const panels = []; // [room, x, ceiling height, z]

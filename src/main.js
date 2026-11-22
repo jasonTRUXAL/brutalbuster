@@ -7,6 +7,7 @@ import { CoverAtlas } from './atlas.js';
 import { TapeShelves } from './tapes.js';
 import { buildStore } from './store.js';
 import { RoomCulling } from './rooms.js';
+import { Theater } from './theater.js';
 import { PlayerControls } from './controls.js';
 import { Inspector } from './inspect.js';
 import { Arcade } from './arcade.js';
@@ -57,7 +58,8 @@ async function main() {
   const canvas = document.getElementById('scene');
   let renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    // (alpha: the lounge screen leaves the canvas see-through while a tape plays: theater.js)
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   } catch {
     ui.fatal('No 3D support', 'Your browser or device could not start WebGL, which the store needs.');
     return;
@@ -68,6 +70,7 @@ async function main() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.autoClear = false;
+  renderer.setClearColor(0x05040c, 1);
   setMaxAnisotropy(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
 
   const scene = new THREE.Scene();
@@ -89,6 +92,8 @@ async function main() {
   const controls = new PlayerControls(camera, canvas, { colliders: store.colliders, bounds: plan.bounds, spawn: plan.spawn });
   const culling = new RoomCulling(plan, store.annex.groups, tapes.covers);
   const inspector = new Inspector(catalog);
+  // the lounge's VCR, projector screen and couches
+  const theater = new Theater({ plan, parts: store.annex.lounge, canvas });
   // The prize corner's machines. Every capsule / jackpot is announced as a `bb:prize`
   // event; that's where the always-win reward system will plug in.
   const arcade = new Arcade(store.prizes, {
@@ -122,48 +127,44 @@ async function main() {
 
   // ------------------------------------------------------------ state machine
   let mode = 'splash';
-  let hovered = -1;
-  let hoveredGame = null;
-  let heldSlot = -1;
+  let hovered = -1; // the tape the crosshair is on
+  let target = null; // what it's on: { kind: 'tape' | 'game' | 'seat' | 'vcr', key, ... }
+  let heldSlot = -1; // the tape in your hands (inspect)
+  let carried = null; // the tape you've grabbed and are carrying round: { slot, video }
+  let inVcr = null; // the tape in the lounge's VCR: { slot, video }
   const setMode = (m) => {
     mode = m;
     ui.setMode(m);
     controls.enabled = m === 'walk';
-    if (m !== 'walk') {
-      setHover(-1);
-      setHoverGame(null);
-    }
+    inspector.showCarry = m !== 'play'; // (it would sit in front of the machine)
+    if (m !== 'walk') setTarget(null);
   };
 
-  function setHover(slot) {
-    if (slot === hovered) return;
-    hovered = slot;
-    tapes.setHover(slot);
-    if (slot < 0) {
-      if (!hoveredGame) ui.hover(null);
-      return;
+  const press = isTouch ? 'Tap' : 'Click';
+  function describe(t) {
+    if (t.kind === 'tape') {
+      const s = plan.slots[t.slot];
+      return { title: s.video.title, aisle: shelfName(catalog.aisleById.get(s.video.aisle)) || s.section.label, hint: `${press} to pick up` };
     }
-    const s = plan.slots[slot];
-    ui.hover({
-      title: s.video.title,
-      aisle: shelfName(catalog.aisleById.get(s.video.aisle)) || s.section.label,
-      hint: isTouch ? 'Tap to pick up' : 'Click to pick up',
-    });
+    if (t.kind === 'game') {
+      const g = t.game;
+      const verb = g.kind === 'gacha' ? 'crouch down and play' : 'step up and play';
+      return { aisle: 'Prize corner', title: g.kind === 'gacha' ? `${g.title} capsule machine` : `${g.title} drop board`, hint: `${press} to ${verb}` };
+    }
+    if (t.kind === 'seat') return { aisle: 'Lounge', title: 'Couch', hint: `${press} to sit down` };
+    return { aisle: 'VCR', title: 'Insert tape', hint: `${press} to put in “${carried.video.title}”` };
   }
 
-  function setHoverGame(game) {
-    if (game === hoveredGame) return;
-    hoveredGame = game;
-    if (!game) {
-      if (hovered < 0) ui.hover(null);
-      return;
+  /** Point the crosshair at something (or nothing): highlight it and say what it is. */
+  function setTarget(t) {
+    const slot = t?.kind === 'tape' ? t.slot : -1;
+    if (slot !== hovered) {
+      hovered = slot;
+      tapes.setHover(slot);
     }
-    const verb = game.kind === 'gacha' ? 'crouch down and play' : 'step up and play';
-    ui.hover({
-      aisle: 'Prize corner',
-      title: game.kind === 'gacha' ? `${game.title} capsule machine` : `${game.title} drop board`,
-      hint: `${isTouch ? 'Tap' : 'Click'} to ${verb}`,
-    });
+    const same = (t?.key ?? null) === (target?.key ?? null);
+    target = t;
+    if (!same) ui.hover(t ? describe(t) : null);
   }
 
   /** Crouch / sit down at a prize-corner machine. */
@@ -184,6 +185,21 @@ async function main() {
     arcade.exit(camera, () => setMode(isTouch || controls.dragLook || regrab ? 'walk' : 'paused'));
   }
 
+  /** Sit on a lounge couch. That's all it does: whatever's on the screen carries on. */
+  function sitDown(seat) {
+    if (!seat || theater.busy || arcade.busy) return;
+    setMode('sit');
+    controls.unlock();
+    theater.sit(seat, camera);
+  }
+
+  function standUp(viaGesture) {
+    if (mode !== 'sit' || !theater.seated) return;
+    const regrab = viaGesture && !isTouch && !controls.dragLook;
+    if (regrab) controls.lock();
+    theater.stand(camera, () => setMode(isTouch || controls.dragLook || regrab ? 'walk' : 'paused'));
+  }
+
   function pickUp(slot) {
     inspector.finishClose();
     if (slot < 0 || inspector.active) return;
@@ -195,22 +211,53 @@ async function main() {
     controls.unlock();
     const aisle = catalog.aisleById.get(video.aisle);
     ui.showInspect(video, aisle, {
-      canWatch: Boolean(video.youtubeId),
+      canGrab: Boolean(video.youtubeId),
       note: video.youtubeId ? '' : 'Display copy — this sample tape isn’t linked to a video yet.',
     });
   }
   inspector.onClosed = (slot) => tapes.show(slot);
 
-  function putBack(viaGesture) {
-    if (mode !== 'inspect') return;
-    inspector.close();
-    heldSlot = -1;
+  /** Back to walking after the held-tape panel. A click lets us recapture the mouse. */
+  function resumeWalking(viaGesture) {
     if (isTouch || controls.dragLook) setMode('walk');
     else if (viaGesture) {
       setMode('walk');
       controls.lock();
     } else setMode('paused');
   }
+
+  function putBack(viaGesture) {
+    if (mode !== 'inspect') return;
+    inspector.close();
+    heldSlot = -1;
+    resumeWalking(viaGesture);
+  }
+
+  /** Keep the tape in your hands and walk off with it (it plays in the lounge's VCR). */
+  function grab(viaGesture) {
+    if (mode !== 'inspect' || heldSlot < 0 || !plan.slots[heldSlot].video.youtubeId) return;
+    if (!inspector.grab()) return;
+    if (carried) tapes.show(carried.slot); // the one you had goes back on its shelf
+    carried = { slot: heldSlot, video: plan.slots[heldSlot].video };
+    heldSlot = -1;
+    resumeWalking(viaGesture);
+  }
+
+  /** Put the tape you're carrying in the VCR: it plays on the lounge screen. */
+  function insertTape() {
+    if (!carried) return;
+    if (inVcr) tapes.show(inVcr.slot); // the tape that was in goes back on its shelf
+    inVcr = carried;
+    carried = null;
+    inspector.release();
+    theater.insert(inVcr.video);
+    setTarget(null);
+  }
+  // at the end of the tape, it's put back on its shelf
+  theater.onEnded = () => {
+    if (inVcr) tapes.show(inVcr.slot);
+    inVcr = null;
+  };
 
   function openDirectory() {
     if (mode === 'inspect') putBack(false);
@@ -223,12 +270,15 @@ async function main() {
     setMode(isTouch || controls.dragLook ? 'walk' : 'paused');
   }
 
-  /** Walk to a tape and pick it up. */
+  /** Walk to a tape and pick it up (a copy that's on a shelf, not one you've taken). */
   function goToVideo(id) {
     const slots = plan.slots
       .map((s, i) => ({ s, i }))
-      .filter(({ s }) => s.video.id === id);
-    if (!slots.length) return;
+      .filter(({ s, i }) => s.video.id === id && !tapes.hiddenSet?.has(i));
+    if (!slots.length) {
+      if (mode === 'directory') closeDirectory(); // (you're carrying it, or it's in the VCR)
+      return;
+    }
     const rank = ({ s }) => (s.section.kind === 'genre' ? 0 : s.section.kind === 'new' ? 1 : 2) * 10 + Math.abs(s.row - 3);
     slots.sort((a, b) => rank(a) - rank(b));
     const { s, i } = slots[0];
@@ -255,17 +305,9 @@ async function main() {
   ui.on('back', () => putBack(true));
   ui.on('flip', () => inspector.flip());
   ui.on('drag', (dx, dy) => inspector.drag(dx, dy));
-  ui.on('watch', () => {
-    const v = heldSlot >= 0 ? plan.slots[heldSlot].video : null;
-    if (!v?.youtubeId) return;
-    ui.openPlayer(v, catalog.store);
-    setMode('watch');
-  });
-  ui.on('eject', () => {
-    ui.closePlayer();
-    setMode('inspect');
-  });
+  ui.on('grab', () => grab(true));
   ui.on('stand', () => exitPlay(true));
+  ui.on('standUp', () => standUp(true));
   ui.on('ps1', () => setPS1(!ps1.enabled));
   ui.buildDirectory(catalog, atlas, (id) => goToVideo(id));
 
@@ -277,16 +319,18 @@ async function main() {
   };
   controls.onTap = (x, y) => {
     if (mode !== 'walk') return;
-    const t = aim(new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1));
-    if (t.game) enterPlay(t.game);
-    else if (t.slot >= 0) pickUp(t.slot);
+    activate(aim(new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1)));
   };
 
-  /** Act on whatever the crosshair (or the drag-look cursor) is on. */
-  function activateHovered() {
-    if (hoveredGame) enterPlay(hoveredGame);
-    else if (hovered >= 0) pickUp(hovered);
+  function activate(t) {
+    if (t?.kind === 'vcr') insertTape();
+    else if (t?.kind === 'game') enterPlay(t.game);
+    else if (t?.kind === 'seat') sitDown(t.seat);
+    else if (t?.kind === 'tape') pickUp(t.slot);
   }
+
+  /** Act on whatever the crosshair (or the drag-look cursor) is on. */
+  const activateHovered = () => activate(target);
 
   const mouse = new THREE.Vector2();
   canvas.addEventListener('mousemove', (e) => {
@@ -313,10 +357,10 @@ async function main() {
       return;
     }
     if (e.key === 'Escape') {
-      if (mode === 'watch') ui.handlers.eject();
-      else if (mode === 'inspect') putBack(false);
+      if (mode === 'inspect') putBack(false);
       else if (mode === 'directory') closeDirectory();
       else if (mode === 'play') exitPlay(false);
+      else if (mode === 'sit') standUp(false);
       return;
     }
     if (e.code === 'KeyP' && mode !== 'splash' && !e.repeat) {
@@ -335,6 +379,10 @@ async function main() {
       }
       return;
     }
+    if (mode === 'sit') {
+      if (/^(Key[WASD]|Arrow(Up|Down|Left|Right))$/.test(e.code)) standUp(true); // walking off gets you up
+      return;
+    }
     if (mode === 'walk' && e.code === 'KeyE') activateHovered();
     else if ((mode === 'walk' || mode === 'paused') && (e.code === 'KeyF' || e.key === '/')) {
       e.preventDefault();
@@ -343,7 +391,10 @@ async function main() {
       if (e.code === 'Space' || e.code === 'KeyR') {
         e.preventDefault();
         inspector.flip();
-      } else if (e.code === 'Enter') ui.handlers.watch();
+      } else if (e.code === 'KeyG' || e.code === 'Enter') {
+        e.preventDefault();
+        grab(true);
+      }
     }
   });
 
@@ -361,6 +412,7 @@ async function main() {
     camera.updateProjectionMatrix();
     inspector.resize(camera.aspect, camera.fov);
     renderer.setSize(window.innerWidth, window.innerHeight);
+    theater.resize(window.innerWidth, window.innerHeight);
   });
 
   // ------------------------------------------------------------ picking
@@ -390,14 +442,22 @@ async function main() {
     return -1;
   }
 
-  /** What the player is pointing at: a tape on a shelf or a prize-corner machine (nearest wins). */
+  /**
+   * What the player is pointing at: a tape on a shelf, a prize-corner machine or a couch
+   * (the nearest wins). Carrying a tape up to the VCR beats all of them.
+   */
   function aim(ndc) {
     camera.updateMatrixWorld(); // aim from where the camera is now, not where it was last drawn
+    if (carried && theater.nearVcr(camera.position)) return { kind: 'vcr', key: `vcr:${carried.slot}` };
     const slot = raySlot(ndc);
+    let best = slot >= 0 ? { kind: 'tape', key: `tape:${slot}`, slot, distance: slotDistance } : null;
     raycaster.setFromCamera(ndc, camera);
-    const hit = arcade.pick(raycaster.ray, DIM.REACH + 0.4);
-    if (hit && hit.distance < slotDistance) return { slot: -1, game: hit.game };
-    return { slot, game: null };
+    const far = DIM.REACH + 0.4;
+    const game = arcade.pick(raycaster.ray, far);
+    if (game && (!best || game.distance < best.distance)) best = { kind: 'game', key: `game:${arcade.games.indexOf(game.game)}`, game: game.game, distance: game.distance };
+    const seat = theater.pickSeat(raycaster.ray, far);
+    if (seat && (!best || seat.distance < best.distance)) best = { kind: 'seat', key: `seat:${seat.index}`, seat: seat.seat, distance: seat.distance };
+    return best;
   }
 
   // ------------------------------------------------------------ thumbnails
@@ -430,17 +490,18 @@ async function main() {
       // slow establishing shot down the aisles
       camera.position.set(spawn.x + Math.sin(time * 0.15) * 0.6, DIM.EYE + 0.1, spawn.z - 0.3);
       camera.rotation.set(-0.05, Math.sin(time * 0.12) * 0.35, 0, 'YXZ');
-    } else if (!arcade.busy) {
+    } else if (!arcade.busy && !theater.busy) {
       controls.update(dt);
     }
     arcade.update(dt, camera); // the machines, and the camera while crouching / seated
-    if (mode === 'walk' && !isTouch) {
-      const t = aim(controls.dragLook ? mouse : center);
-      setHover(t.slot);
-      setHoverGame(t.game);
+    theater.update(dt, camera); // the couch's camera, the tape playing
+    if (mode === 'walk') {
+      // (on a touchscreen there's no crosshair: only the VCR's prompt shows)
+      if (!isTouch) setTarget(aim(controls.dragLook ? mouse : center));
+      else setTarget(carried && theater.nearVcr(camera.position) ? aim(center) : null);
     }
     store.update(dt, time);
-    inspector.update(dt);
+    inspector.update(dt, mode === 'walk' ? Math.min(1, Math.hypot(controls.vel.x, controls.vel.z) / DIM.WALK) : 0);
     flushTimer += dt;
     if (flushTimer > 0.35) {
       flushTimer = 0;
@@ -454,6 +515,7 @@ async function main() {
     if (ps1.enabled) ps1.render(scene, camera);
     else renderer.render(scene, camera);
     inspector.render(renderer, ps1.enabled ? ps1 : null);
+    theater.render(camera, culling.visible);
   }
 
   // Dev-only `?manual`: no render loop; frames happen only via __bb.advance(). The smoke
@@ -472,10 +534,20 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, ps1, culling, setPS1, goToVideo, pickUp, putBack, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
-      get hoveredGame() { return hoveredGame; },
+      get target() { return target; },
+      get carried() { return carried; },
+      get inVcr() { return inVcr; },
+      /** Let go of any tape you're carrying and empty the VCR (resets between tests). */
+      emptyHands() {
+        if (carried) tapes.show(carried.slot);
+        if (inVcr) tapes.show(inVcr.slot);
+        carried = inVcr = null;
+        inspector.dropCarry();
+        theater.eject();
+      },
       advance(seconds, step = 1 / 60) {
         for (let t = 0; t < seconds; t += step) tick(step);
         draw();

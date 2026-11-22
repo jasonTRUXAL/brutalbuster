@@ -5,7 +5,7 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 | # | Area | Source | Status |
 |---|---|---|---|
 | 1 | **The store** (main sales floor) | brutalmoose main channel ([youtube.com/brutalmoose](https://www.youtube.com/brutalmoose)) | ✅ Live: https://jasontruxal.github.io/brutalbuster/ |
-| 2 | **The lounge** (the theater room) | Plays whatever tape you pick | Room and props built (see "New rooms"); playing videos comes later |
+| 2 | **The lounge** (the theater room) | Plays whatever tape you bring it | Working: carry a tape to the VCR and it plays on the big screen |
 | 3 | **Streams** (the streaming archive) | [moose2](https://www.youtube.com/moose2), 742 videos | Stocked: every stream on the shelves, by year (restocked daily into `public/streams.json`) |
 | 4 | **Extras** | To decide (the user is compiling the list) | Room built with empty "Coming Soon" shelves and boxes, kept as is for now |
 | 5 | **VHS backup vault** | His VHS backup channel, possibly plus other websites for the full list | Later (it could live in Extras) |
@@ -26,7 +26,13 @@ The work is split into passes, each finished and approved before the next:
 1. **Rooms and props** ✅ (this branch). Walls, floors, lighting and furniture, with empty "Coming Soon" shelves. No new videos. The lounge screen runs a "coming attractions" slideshow of box art.
 2. **Content pipeline** ✅ (branch `feature/streams-catalog`). `store.config.json` → `areas` lists the extra catalogs. `npm run sync` writes `public/catalog.json` (sales floor) and `public/streams.json` (Streams, from moose2), both in [the catalog format](catalog-format.md). Streams is shelved by year (`aislesBy: "year"`): one aisle per year, newest first. The committed `streams.json` is the 15 newest from the RSS feed; the deploy restocks it with the full channel.
 3. **Stock the Streams shelves** ✅ (branch `feature/streams-shelves`). The store loads `streams.json` alongside `catalog.json`. Each year gets a section, newest year first, starting on the centre gondola (the first thing you meet through the archway) and carrying on round the walls. Within a year, tapes run in upload order, so a playthrough reads Part One → Finale. The gondola's front end shows the latest stream and its back end a clerk's pick. The room runs further back, a bay at a time, when the catalog needs more shelf. 742 streams needed 25 bays and the standard room has 23, so it's 1.2 m deeper. Picking up, watching and **Find a tape** (a **Streams** button) work the same as on the sales floor. To keep the sales floor fast, rooms out of sight aren't drawn, and aiming only tests the tapes within reach. Extras waits for its list.
-4. **A working projector.** Sit on a couch and the tape plays on the lounge screen. `plan.lounge.screen` is the screen's position and size, for laying a YouTube player over it (see "Theater room" below). `plan.lounge.sofas` are the seats.
+4. **A working projector** ✅ (branch `feature/lounge-vcr`). As the user specified:
+   - The held-tape panel's **Watch now** (the pop-up TV) is gone. Its buttons are now **Grab** and **View on YouTube** (plus Flip and Put back).
+   - **Grab** and you hold the tape: it's shown facing you, centred in the lower third of the view, and goes where you go. Grabbing another sends the first back to its shelf.
+   - A VCR sits in a media cabinet under the screen. Nothing points you to it: you find it by exploring. Get near it holding a tape and it says **Insert tape**; get near it empty-handed and it says nothing.
+   - Put the tape in: the screen goes VCR-blue with PLAY, then the video plays on the big screen (a real YouTube player lined up behind the see-through screen, so walls and furniture still hide it). It plays on as you walk round, quieter further off. A new tape sends the old one back to its shelf, as does the end of the tape.
+   - With no tape in, a made-up VHS logo bounces round the screen like an idle DVD player's, changing colour at each bounce. It replaced the box-art slideshow.
+   - You can sit on either couch (three seats each), but sitting does nothing else.
 
 ## Prize corner (built)
 
@@ -53,9 +59,9 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 ## Area notes
 
 ### 2. Theater room (the lounge)
-- **Built as props** (see "New rooms"). The screen is at `plan.lounge.screen` and the couches are at `plan.lounge.sofas`.
-- **Open question:** is this where **Watch now** leads (walk into a small theater and the tape plays on the big screen, replacing today's pop-up TV), or a separate destination (for example a screening room with a featured program)?
-- **Technical note:** a YouTube player can't be drawn inside the 3D scene as a texture (browser security rules). The usual approach is to lay the real player over the 3D screen and keep it lined up as you look around (three.js `CSS3DRenderer`), with a full-screen fallback on phones.
+- **Working** (pass 4 above). The screen is at `plan.lounge.screen`, the VCR and its cabinet at `plan.lounge.vcr` / `cabinet`, and the seats at `plan.lounge.seats`.
+- **Technical note:** a YouTube player can't be drawn inside the 3D scene as a texture (browser security rules). The real player sits behind the canvas, lined up by three.js `CSS3DRenderer`, and the screen leaves the canvas see-through over it (see CLAUDE.md). It works the same on phones.
+- **Ideas not built:** ejecting without inserting another tape, a "rewinding…" pause, remembering where you stopped.
 
 ### 3. Streaming archive (Streams)
 - Built as the back two-thirds of the wing off the sales floor (see "New rooms"), with its own purple look. Stocked year by year (pass 3).
@@ -73,3 +79,4 @@ Box covers, posters, the standee, the counter TV and the held tape are redrawn s
 - **2026-11-04:** PS1 Mode applies to everything except the video thumbnails, as asked. The whole box front counts as "thumbnail" so titles stay readable. The choice is per browser (remembered), and off by default.
 - **2026-11-21:** New rooms. A hallway opposite the counter leads to a wing that's a lounge (front third: couches, projector) and Streams (back two-thirds). A door in the back right-hand corner leads to Extras. Built in passes: rooms and props first, then content, then the working projector.
 - **2026-11-21:** Streams is stocked from moose2 and shelved by year. Extras keeps its empty shelves and boxes until the user has compiled what goes in it.
+- **2026-11-21:** The lounge works the user's way: no pop-up TV. **Grab** a tape, carry it (shown in the lower third, facing you) to the VCR you find by exploring, and it plays on the big screen. The VCR speaks up only when you bring a tape. An empty screen shows a bouncing VHS logo, and the couches are just for sitting.

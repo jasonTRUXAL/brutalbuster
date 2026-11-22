@@ -45,6 +45,8 @@ export const DIM = {
   WALK: 2.4,
   RUN: 4.2,
   REACH: 2.3, // how far away you can grab a tape
+  SEATED_EYE: 1.14, // on a lounge couch
+  VCR_NEAR: 1.6, // how close to the VCR you get the "insert tape" prompt
 };
 
 export const CASES_PER_BAY_ROW = Math.floor((DIM.BAY_W - 0.06) / DIM.SLOT_PITCH);

@@ -72,11 +72,11 @@
         <div class="ip-meta"></div>
         <p class="ip-desc"></p>
         <div class="ip-actions">
-          <button class="btn primary" data-act="watch" type="button">▶ Watch now</button>
+          <button class="btn primary" data-act="grab" type="button">Grab <kbd>G</kbd></button>
           <button class="btn" data-act="flip" type="button">↻ Flip box</button>
           <button class="btn ghost" data-act="back" type="button">Put back <kbd>Esc</kbd></button>
+          <a class="btn ip-yt" target="_blank" rel="noopener" hidden>View on YouTube ↗</a>
         </div>
-        <a class="ip-yt" target="_blank" rel="noopener" hidden>Open on YouTube ↗</a>
         <p class="ip-note" hidden></p>
       </aside>
     </section>
@@ -94,16 +94,9 @@
       </div>
     </section>
 
-    <!-- TV player -->
-    <section id="player" class="overlay" hidden>
-      <div class="tv">
-        <div class="tv-screen"><div class="tv-frame"></div></div>
-        <div class="tv-bezel">
-          <span class="tv-brand"></span>
-          <span class="tv-title"></span>
-          <button class="btn" data-act="eject" type="button">⏏ Eject <kbd>Esc</kbd></button>
-        </div>
-      </div>
+    <!-- Sitting on a lounge couch -->
+    <section id="seat" hidden>
+      <button class="btn" data-act="stand" type="button">Stand up <kbd>Esc</kbd></button>
     </section>
 
     <!-- Directory -->

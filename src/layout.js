@@ -509,7 +509,7 @@ function planAnnex(d, streamsArea) {
   const lounge = {
     id: 'lounge', x0: wx0, x1: wx1, z0: lz0, z1: D / 2,
     arch,
-    // the projection screen on the far wall: where a video will play one day
+    // the projection screen on the far wall: a tape in the VCR plays on it
     screen: { x: wx0 + 0.06, y: 1.55, z: zc, w: 3.0, h: 1.69, n: { x: 1, z: 0 } },
     projector: { x: wx0 + 5.4, y: 3.02, z: zc },
     sofas: [
@@ -519,10 +519,18 @@ function planAnnex(d, streamsArea) {
     table: { x: wx0 + 1.95, z: zc, w: 0.55, len: 1.1 },
     lamp: { x: wx0 + 3.75, z: D / 2 - 0.35 },
     popcorn: { x: wx1 - 0.62, z: D / 2 - 0.62 },
+    // a low media cabinet under the screen (w along the wall), the VCR on top, its front
+    // (where the tape goes in) facing the room
+    cabinet: { x: wx0 + 0.22, z: zc, w: 1.3, d: 0.44, h: 0.5 },
+    vcr: { x: wx0 + 0.27, y: 0.5, z: zc, w: 0.43, d: 0.3, h: 0.09, n: { x: 1, z: 0 } },
   };
+  // three seats per couch, where your eyes are once you've sat down
+  lounge.seats = lounge.sofas.flatMap((s, sofa) => [-1, 0, 1].map((k) => ({ sofa, x: s.x + 0.06, y: DIM.SEATED_EYE, z: s.z + (k * (s.len - 0.36)) / 3 })));
   for (const s of lounge.sofas) colliders.push({ minX: s.x - s.depth / 2, maxX: s.x + s.depth / 2, minZ: s.z - s.len / 2, maxZ: s.z + s.len / 2 });
   const tb = lounge.table;
   colliders.push({ minX: tb.x - tb.w / 2, maxX: tb.x + tb.w / 2, minZ: tb.z - tb.len / 2, maxZ: tb.z + tb.len / 2 });
+  const cb = lounge.cabinet;
+  colliders.push({ minX: cb.x - cb.d / 2, maxX: cb.x + cb.d / 2, minZ: cb.z - cb.w / 2, maxZ: cb.z + cb.w / 2 });
   colliders.push(square(lounge.lamp.x, lounge.lamp.z, 0.2));
   colliders.push(square(lounge.popcorn.x, lounge.popcorn.z, 0.4));
 

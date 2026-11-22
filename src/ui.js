@@ -1,4 +1,4 @@
-// DOM overlays: splash, HUD tooltip, held-tape panel, TV player, store directory.
+// DOM overlays: splash, HUD tooltip, held-tape panel, the couch's Stand up, store directory.
 import { escapeHtml, makeCanvas } from './util.js';
 import { shelfName } from './catalog.js';
 import { mountGamePanel } from './arcade-ui.js';
@@ -11,7 +11,7 @@ export class UI {
     this.hud = $('#hud');
     this.resumeHint = $('#resume-hint');
     this.inspect = $('#inspect');
-    this.player = $('#player');
+    this.seat = $('#seat');
     this.directory = $('#directory');
     this.play = $('#play');
     this.tooltip = $('#tooltip');
@@ -32,8 +32,8 @@ export class UI {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act) this.handlers[act]?.();
     });
-    this.player.addEventListener('click', (e) => {
-      if (e.target.closest('[data-act="eject"]') || e.target === this.player) this.handlers.eject?.();
+    this.seat.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act="stand"]')) this.handlers.standUp?.();
     });
     this.directory.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="close"]') || e.target === this.directory) this.handlers.closeDirectory?.();
@@ -66,7 +66,6 @@ export class UI {
     document.querySelectorAll('.brand-name').forEach((el) => (el.textContent = store.name));
     document.querySelectorAll('.brand-sub').forEach((el) => (el.textContent = store.subtitle || ''));
     $('.tagline').textContent = store.tagline || '';
-    $('.tv-brand').textContent = store.name;
     document.title = `${titleCase(store.name)} ${titleCase(store.subtitle || '')}`.trim();
     const credit = $('#splash-credit');
     if (store.channelUrl) {
@@ -97,13 +96,13 @@ export class UI {
   setMode(mode) {
     const inStore = mode !== 'splash';
     this.splash.hidden = mode !== 'splash';
-    this.hud.hidden = !inStore || mode === 'watch' || mode === 'inspect' || mode === 'play';
+    this.hud.hidden = !inStore || mode === 'inspect' || mode === 'play' || mode === 'sit';
     this.play.hidden = mode !== 'play';
     // 'paused' = mouse released (Esc): the store stays visible, a click recaptures the mouse
     this.resumeHint.hidden = mode !== 'paused';
     document.body.classList.toggle('mouse-free', mode === 'paused');
     this.inspect.hidden = mode !== 'inspect';
-    this.player.hidden = mode !== 'watch';
+    this.seat.hidden = mode !== 'sit';
     this.directory.hidden = mode !== 'directory';
     this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory');
     if (mode !== 'walk') this.hover(null);
@@ -148,7 +147,7 @@ export class UI {
     $('.tt-hint', this.tooltip).textContent = info.hint;
   }
 
-  showInspect(video, aisle, { canWatch, note }) {
+  showInspect(video, aisle, { canGrab, note }) {
     const p = $('.inspect-panel');
     p.style.animation = 'none';
     void p.offsetWidth;
@@ -158,32 +157,13 @@ export class UI {
     $('.ip-title').textContent = video.title;
     $('.ip-meta').textContent = [video.year, video.duration].filter(Boolean).join('  ·  ');
     $('.ip-desc').textContent = video.description || 'No synopsis on file.';
-    const watch = $('[data-act="watch"]', p);
-    watch.disabled = !canWatch;
+    $('[data-act="grab"]', p).disabled = !canGrab;
     const yt = $('.ip-yt');
     yt.hidden = !video.youtubeId;
     if (video.youtubeId) yt.href = `https://www.youtube.com/watch?v=${encodeURIComponent(video.youtubeId)}`;
     const n = $('.ip-note');
     n.hidden = !note;
     n.textContent = note || '';
-  }
-
-  openPlayer(video, store) {
-    const frame = $('.tv-frame');
-    frame.innerHTML = '';
-    const iframe = document.createElement('iframe');
-    iframe.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(video.youtubeId)}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
-    iframe.title = video.title;
-    iframe.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    iframe.allowFullscreen = true;
-    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-    frame.appendChild(iframe);
-    $('.tv-title').textContent = `▶ ${video.title}`;
-    $('.tv-brand').textContent = store.name;
-  }
-
-  closePlayer() {
-    $('.tv-frame').innerHTML = '';
   }
 
   // ------------------------------------------------------------ directory

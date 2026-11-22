@@ -1,5 +1,6 @@
 // Picking a tape off the shelf: the case flies from its slot into your hands,
-// the store dims behind it, and you can spin it to read the back.
+// the store dims behind it, and you can spin it to read the back. Grab it and it drops
+// to the bottom of your view, and you carry it round with you (to the lounge's VCR).
 import * as THREE from 'three';
 import { DIM } from './config.js';
 import { coverData, drawCover, drawBack, drawSpine, drawPlastic } from './covers.js';
@@ -53,8 +54,14 @@ export class Inspector {
     this.scene.add(dim);
     this.dim = dim;
 
+    this.subjects = new THREE.Group(); // the tape in your hands, and the one you're carrying
+    this.scene.add(this.subjects);
     this.mesh = null;
     this.slot = -1;
+    // the tape you've grabbed: { mesh, slot, video, state: 'in' | 'held' | 'out', t, from, dim }
+    this.carry = null;
+    this.showCarry = true;
+    this.stride = { phase: 0, amount: 0 };
     this.state = 'idle'; // idle | in | held | out
     this.t = 0;
     this.spin = { yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0 };
@@ -95,7 +102,7 @@ export class Inspector {
       sleeve(back, true),
     ];
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(DIM.CASE_W, DIM.CASE_H, DIM.CASE_D), mats);
-    this.scene.add(this.mesh);
+    this.subjects.add(this.mesh);
 
     this.camera.fov = mainCamera.fov;
     this.camera.aspect = mainCamera.aspect;
@@ -130,6 +137,48 @@ export class Inspector {
     this.onClosed?.(slot);
   }
 
+  /**
+   * Keep hold of the tape in your hands: it drops to the bottom of the view, facing you,
+   * and goes where you go. Whatever you were carrying before is let go of.
+   */
+  grab() {
+    if (!this.mesh || this.state === 'out') return false;
+    disposeCase(this.carry?.mesh);
+    this.carry = {
+      mesh: this.mesh,
+      slot: this.slot,
+      video: this.video,
+      state: 'in',
+      t: 0,
+      from: { pos: this.mesh.position.clone(), quat: this.mesh.quaternion.clone() },
+      dim: this.dimMat.uniforms.uAlpha.value,
+    };
+    this.mesh = null;
+    this.slot = -1;
+    this.state = 'idle';
+    return true;
+  }
+
+  /** True while you're carrying a tape. */
+  get carrying() {
+    return Boolean(this.carry && this.carry.state !== 'out');
+  }
+
+  /** The carried tape goes in somewhere (the VCR): it drops out of view. */
+  release() {
+    if (!this.carrying) return;
+    const c = this.carry;
+    c.from = { pos: c.mesh.position.clone(), quat: c.mesh.quaternion.clone() };
+    c.state = 'out';
+    c.t = 0;
+  }
+
+  /** Forget the carried tape straight away. */
+  dropCarry() {
+    disposeCase(this.carry?.mesh);
+    this.carry = null;
+  }
+
   flip() {
     this.spin.targetYaw = Math.round(this.spin.targetYaw / Math.PI) * Math.PI + Math.PI;
   }
@@ -149,7 +198,20 @@ export class Inspector {
     return out;
   }
 
-  update(dt) {
+  /** Where a carried tape rides: centred, in the bottom third of the view (above the hints). */
+  carryPose(out) {
+    const dist = 0.62;
+    const halfH = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * dist;
+    return out.set(0, -halfH * 0.6, -dist);
+  }
+
+  /** `moving` (0 to 1) is how fast you're walking: the carried tape bobs along. */
+  update(dt, moving = 0) {
+    if (this.carry) this._updateCarry(dt, moving);
+    if (this.state === 'idle') {
+      const c = this.carry;
+      this.dimMat.uniforms.uAlpha.value = c?.state === 'in' ? c.dim * (1 - easeInOut(Math.min(1, c.t / CARRY_IN))) : 0;
+    }
     if (this.state === 'idle' || !this.mesh) return;
     this.t += dt;
     const hold = this.holdPose(_p);
@@ -179,11 +241,41 @@ export class Inspector {
     }
   }
 
+  _updateCarry(dt, moving) {
+    const c = this.carry;
+    c.t += dt;
+    c.mesh.visible = this.showCarry && this.state === 'idle'; // (out of sight while you look at another)
+    const st = this.stride;
+    st.amount += (moving - st.amount) * (1 - Math.exp(-dt * 6));
+    st.phase += dt * 9 * st.amount;
+    const pose = this.carryPose(_p);
+    pose.x += Math.cos(st.phase / 2) * 0.004 * st.amount;
+    pose.y += Math.abs(Math.sin(st.phase)) * 0.008 * st.amount;
+    const sway = Math.sin(performance.now() / 1100) * 0.025;
+    _q.setFromEuler(_e.set(-0.14, 0.05 + sway, 0.015, 'YXZ'));
+    if (c.state === 'in') {
+      const k = easeInOut(Math.min(1, c.t / CARRY_IN));
+      c.mesh.position.lerpVectors(c.from.pos, pose, k);
+      c.mesh.quaternion.slerpQuaternions(c.from.quat, _q, k);
+      if (c.t >= CARRY_IN) c.state = 'held';
+    } else if (c.state === 'held') {
+      c.mesh.position.copy(pose);
+      c.mesh.quaternion.copy(_q);
+    } else {
+      const k = easeInOut(Math.min(1, c.t / CARRY_OUT));
+      c.mesh.position.copy(c.from.pos);
+      c.mesh.position.y -= k * 0.32;
+      c.mesh.position.z -= k * 0.12;
+      if (c.t >= CARRY_OUT) this.dropCarry();
+    }
+  }
+
   /** Draw over the store. With PS1 Mode on, `ps1` draws it in the PS1 style. */
   render(renderer, ps1 = null) {
-    if (this.state === 'idle') return;
+    if (this.state === 'idle' && !this.carry?.mesh.visible) return;
+    this.dim.visible = this.dimMat.uniforms.uAlpha.value > 0.001;
     if (ps1) {
-      ps1.renderOverlay(this.scene, this.camera, { backdrop: this.dim, subject: this.mesh });
+      ps1.renderOverlay(this.scene, this.camera, { backdrop: this.dim, subject: this.subjects });
       return;
     }
     renderer.clearDepth();
@@ -197,13 +289,20 @@ export class Inspector {
   }
 
   dispose() {
-    if (!this.mesh) return;
-    this.scene.remove(this.mesh);
-    this.mesh.geometry.dispose();
-    for (const m of this.mesh.material) {
-      m.map?.dispose();
-      m.dispose();
-    }
+    disposeCase(this.mesh);
     this.mesh = null;
+  }
+}
+
+const CARRY_IN = 0.45;
+const CARRY_OUT = 0.35;
+
+function disposeCase(mesh) {
+  if (!mesh) return;
+  mesh.removeFromParent();
+  mesh.geometry.dispose();
+  for (const m of mesh.material) {
+    m.map?.dispose();
+    m.dispose();
   }
 }

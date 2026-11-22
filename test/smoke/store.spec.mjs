@@ -55,9 +55,10 @@ const test = base.extend({
     expect(errors, 'the page logged errors').toEqual([]);
     await page.evaluate(() => {
       const bb = window.__bb;
-      if (bb.mode === 'watch') document.querySelector('[data-act="eject"]').click();
       if (bb.mode === 'inspect') bb.putBack(false);
       if (bb.mode === 'play') bb.exitPlay(false);
+      if (bb.mode === 'sit') bb.standUp(false);
+      bb.emptyHands(); // nothing carried, nothing in the VCR
       if (bb.ps1.enabled) bb.setPS1(false, false);
       bb.advance(1); // let any put-back / stand-up animation finish
       if (bb.mode !== 'splash') bb.setMode('walk');
@@ -145,26 +146,27 @@ test('the rooms off the sales floor: you can walk into each one, and they render
   });
   expect(r).toEqual({ lounge: true, screenSide: true, streams: true, extras: true, rooms: ['hall', 'lounge', 'streams', 'extras'], screen: 'lounge-screen' });
 
-  // stand behind the couches facing the screen: it draws, and the pre-show is running
+  // stand behind the couches facing the screen: it draws, and the VHS logo is bouncing
   const view = await page.evaluate(() => {
     const bb = window.__bb;
     const L = bb.plan.lounge;
     bb.setMode('walk');
     bb.controls.teleport(L.x1 - 0.6, L.screen.z, Math.PI / 2, -0.05);
-    const first = bb.store.annex.lounge.show.video?.id;
-    bb.advance(9.5); // one slide's worth
+    const screen = bb.store.annex.lounge.projection;
+    const first = screen.bounces;
+    bb.advance(9.5); // long enough to cross the screen
     const gl = bb.renderer.getContext();
     const px = new Uint8Array(4);
     const seen = new Set();
-    for (let y = 1; y < 6; y++) for (let x = 1; x < 6; x++) {
-      gl.readPixels(Math.floor((gl.drawingBufferWidth * x) / 6), Math.floor((gl.drawingBufferHeight * y) / 6), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    for (let y = 1; y < 8; y++) for (let x = 1; x < 8; x++) {
+      gl.readPixels(Math.floor((gl.drawingBufferWidth * x) / 8), Math.floor((gl.drawingBufferHeight * y) / 8), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
       seen.add(`${px[0] >> 4},${px[1] >> 4},${px[2] >> 4}`);
     }
-    return { colours: seen.size, glError: gl.getError(), changed: bb.store.annex.lounge.show.video?.id !== first || bb.catalog.videos.length < 2 };
+    return { colours: seen.size, glError: gl.getError(), mode: screen.mode, bounced: screen.bounces > first };
   });
   expect(view.glError).toBe(0);
   expect(view.colours, 'distinct colours sampled across the lounge').toBeGreaterThan(6);
-  expect(view.changed, 'the screen moved on to the next tape').toBe(true);
+  expect(view, 'with no tape in, the logo bounces round the screen').toMatchObject({ mode: 'logo', bounced: true });
   await page.evaluate(() => {
     const { controls, plan } = window.__bb;
     controls.teleport(plan.spawn.x, plan.spawn.z, plan.spawn.yaw, -0.04); // back to the door for the next test
@@ -325,8 +327,24 @@ test('find a tape in the directory and walk to it', async ({ store: page }, test
   expect(dist).toBeLessThan(1.5);
 });
 
-test('Watch opens the TV for linked tapes only', async ({ store: page }, testInfo) => {
-  test.skip(isPhone(testInfo), 'same UI on phone');
+/**
+ * The canvas's alpha at the middle of the lounge screen, after a frame (0 = see-through,
+ * where the YouTube player behind shows).
+ */
+const screenAlpha = (page) =>
+  page.evaluate(() => {
+    const bb = window.__bb;
+    const s = bb.plan.lounge.screen;
+    bb.advance(0.05);
+    const p = new bb.camera.position.constructor(s.x - 0.03, s.y, s.z).project(bb.camera);
+    const gl = bb.renderer.getContext();
+    const px = new Uint8Array(4);
+    gl.readPixels(Math.round(((p.x + 1) / 2) * gl.drawingBufferWidth), Math.round(((p.y + 1) / 2) * gl.drawingBufferHeight), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return px[3];
+  });
+
+test('Grab a tape, carry it to the lounge VCR, and it plays on the big screen', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'same flow on phone');
   const slot = await genreSlot(page, 1);
   const linked = await page.evaluate((i) => {
     const v = window.__bb.plan.slots[i].video;
@@ -335,16 +353,52 @@ test('Watch opens the TV for linked tapes only', async ({ store: page }, testInf
     return v.youtubeId;
   }, slot);
   await advance(page, 0.8);
-  await page.locator('[data-act="watch"]').click();
-  await expect(page.locator('#player')).toBeVisible();
-  await expect(page.locator('#player iframe')).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}`));
-  await page.locator('[data-act="eject"]').click();
-  await expect(page.locator('#player iframe')).toHaveCount(0);
-  await expect(page.locator('#inspect')).toBeVisible();
-
-  // an unlinked tape can't be watched
-  await page.keyboard.press('Escape');
+  await expect(page.locator('#inspect .ip-yt')).toHaveAttribute('href', `https://www.youtube.com/watch?v=${linked}`);
+  await page.locator('[data-act="grab"]').click();
   await advance(page, 0.6);
+  const carrying = await page.evaluate((i) => {
+    const bb = window.__bb;
+    bb.setMode('walk'); // (pointer lock is refused headless)
+    return { carried: bb.carried?.slot, offShelf: bb.tapes.hiddenSet.has(i), inspecting: bb.inspector.active, shown: bb.inspector.carry?.mesh.visible };
+  }, slot);
+  expect(carrying).toEqual({ carried: slot, offShelf: true, inspecting: false, shown: true });
+
+  // walk into the lounge: nothing's said until you're close to the VCR
+  const stand = (where) =>
+    page.evaluate((w) => {
+      const bb = window.__bb;
+      const L = bb.plan.lounge;
+      // (behind the couches looking at the screen; at the VCR looking down at it)
+      const at = { couches: [L.x1 - 0.8, L.screen.z, 0], vcr: [L.cabinet.x + L.cabinet.d / 2 + 0.55, L.vcr.z, -0.3] }[w];
+      bb.controls.teleport(at[0], at[1], Math.PI / 2, at[2]);
+      bb.advance(0.1);
+      return document.querySelector('#tooltip').hidden ? null : document.querySelector('.tt-title').textContent;
+    }, where);
+  expect(await stand('couches')).toBeNull();
+  expect(await stand('vcr')).toBe('Insert tape');
+
+  // put it in: the VCR's blue screen, then the picture, with the player behind the canvas
+  await page.keyboard.press('KeyE');
+  await advance(page, 0.05); // (the player goes into the page with the next frame)
+  const playing = await page.evaluate(() => {
+    const bb = window.__bb;
+    return { inVcr: bb.inVcr?.video.youtubeId, carried: bb.carried, screen: bb.store.annex.lounge.projection.mode };
+  });
+  expect(playing).toEqual({ inVcr: linked, carried: null, screen: 'loading' });
+  await expect(page.locator('#theater iframe')).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}\\?`));
+  await advance(page, 2);
+  expect(await page.evaluate(() => window.__bb.store.annex.lounge.projection.mode)).toBe('video');
+  expect(await page.evaluate(() => document.querySelector('#tooltip').hidden), 'empty-handed at the VCR, nothing is said').toBe(true);
+  await page.evaluate(() => {
+    const L = window.__bb.plan.lounge;
+    window.__bb.controls.teleport(L.x1 - 0.8, L.screen.z, Math.PI / 2, -0.05);
+  });
+  expect(await screenAlpha(page), 'the screen is see-through over the player').toBe(0);
+  await page.evaluate(() => window.__bb.setPS1(true, false));
+  expect(await screenAlpha(page), 'in PS1 Mode too').toBe(0);
+  await page.evaluate(() => window.__bb.setPS1(false, false));
+
+  // an unlinked tape can't be grabbed
   await page.evaluate(() => window.__bb.setMode('walk'));
   const unlinked = await page.evaluate(() => {
     const { plan } = window.__bb;
@@ -354,8 +408,33 @@ test('Watch opens the TV for linked tapes only', async ({ store: page }, testInf
   });
   if (unlinked >= 0) {
     await advance(page, 0.8);
-    await expect(page.locator('[data-act="watch"]')).toBeDisabled();
+    await expect(page.locator('[data-act="grab"]')).toBeDisabled();
   }
+});
+
+test('sit on a lounge couch, and stand back up', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'same on phone');
+  const aimed = await page.evaluate(() => {
+    const bb = window.__bb;
+    const sofa = bb.plan.lounge.sofas[0];
+    bb.setMode('walk');
+    bb.controls.teleport(sofa.x, sofa.z + sofa.len / 2 + 0.9, 0, -0.5); // at the end of the couch, looking at it
+    bb.advance(0.1);
+    return { kind: bb.target?.kind, title: document.querySelector('.tt-title').textContent, at: bb.camera.position.toArray() };
+  });
+  expect(aimed).toMatchObject({ kind: 'seat', title: 'Couch' });
+  await page.keyboard.press('KeyE');
+  await advance(page, 1);
+  const seated = await page.evaluate(() => ({ mode: window.__bb.mode, eye: window.__bb.camera.position.y }));
+  expect(seated.mode).toBe('sit');
+  expect(seated.eye).toBeCloseTo(1.14, 2);
+  await expect(page.locator('#seat [data-act="stand"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await advance(page, 1);
+  const stood = await page.evaluate(() => ({ mode: window.__bb.mode, at: window.__bb.camera.position.toArray() }));
+  expect(['paused', 'walk'], 'up off the couch (paused, or walking with drag-to-look)').toContain(stood.mode);
+  stood.at.forEach((v, k) => expect(v).toBeCloseTo(aimed.at[k], 3));
+  await expect(page.locator('#seat')).toBeHidden();
 });
 
 test('phone: pick up a tape, panel at the bottom, put it back', async ({ store: page }, testInfo) => {

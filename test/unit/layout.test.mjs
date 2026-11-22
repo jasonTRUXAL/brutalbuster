@@ -109,6 +109,33 @@ for (const n of SIZES) {
         }
       }
     });
+
+    await t.test('the lounge: a VCR you can walk up to, couches with a view of the screen', () => {
+      const { lounge: L } = plan;
+      const { screen: s, cabinet: c, vcr: v } = L;
+      // the cabinet stands against the screen wall, under the screen, and the VCR sits on it
+      assert.ok(Math.abs(c.x - c.d / 2 - L.x0) < 0.01, 'the cabinet is against the wall');
+      assert.ok(c.h + v.h < s.y - s.h / 2, 'the VCR is below the screen');
+      assert.ok(Math.abs(v.y - c.h) < 1e-6 && Math.abs(v.z - c.z) < c.w / 2 && v.x + v.d / 2 <= c.x + c.d / 2 + 1e-6, 'the VCR sits on the cabinet');
+      // you can stand close in front of it, near enough to be asked for the tape
+      const walk = walkFrom(plan.colliders, plan.bounds, plan.spawn);
+      const front = { x: c.x + c.d / 2 + DIM.RADIUS + 0.25, z: v.z };
+      assert.ok(walk.reaches(front), "can't walk up to the VCR");
+      assert.ok(Math.hypot(front.x - v.x, front.z - v.z) < DIM.VCR_NEAR - 0.3, 'standing at the VCR is close enough for the prompt');
+      // three seats on each couch, and from every one the couch in front doesn't hide the screen
+      assert.equal(L.seats.length, 3 * L.sofas.length);
+      for (const seat of L.seats) {
+        const sofa = L.sofas[seat.sofa];
+        assert.ok(Math.abs(seat.z - sofa.z) < sofa.len / 2 - 0.2, 'a seat is on its couch');
+        for (const other of L.sofas) {
+          if (other === sofa || other.x > sofa.x) continue; // only the couches between you and the screen
+          const backX = other.x + other.depth / 2; // the top of its backrest, nearest you
+          const t = (seat.x - backX) / (seat.x - s.x);
+          const sightAt = seat.y + (s.y - s.h / 2 - seat.y) * t; // looking at the bottom of the screen
+          assert.ok(sightAt > 0.95, `from seat ${L.seats.indexOf(seat)} the couch in front hides the screen`);
+        }
+      }
+    });
   });
 }
 

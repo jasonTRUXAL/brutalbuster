@@ -249,7 +249,7 @@ export function lowResSize(screenW, screenH) {
 }
 
 const BLIT_VERT = 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4( position.xy, 0.0, 1.0 ); }';
-const BLIT_FRAG = 'uniform sampler2D tLow; uniform float uOpaque; varying vec2 vUv; void main() { vec4 c = texture2D( tLow, vUv ); gl_FragColor = vec4( c.rgb, max( c.a, uOpaque ) ); }';
+const BLIT_FRAG = 'uniform sampler2D tLow; varying vec2 vUv; void main() { gl_FragColor = texture2D( tLow, vUv ); }';
 
 const _clear = new THREE.Color();
 
@@ -268,7 +268,7 @@ export class PS1Mode {
     this.blit = new THREE.Mesh(
       new THREE.PlaneGeometry(2, 2),
       new THREE.ShaderMaterial({
-        uniforms: { tLow: { value: this.target.texture }, uOpaque: { value: 1 } },
+        uniforms: { tLow: { value: this.target.texture } },
         vertexShader: BLIT_VERT,
         fragmentShader: BLIT_FRAG,
         transparent: true,
@@ -372,8 +372,13 @@ export class PS1Mode {
     r.setRenderTarget(null);
   }
 
-  _blit(opaque) {
-    this.blit.material.uniforms.uOpaque.value = opaque ? 1 : 0;
+  /**
+   * Blow the low-res picture up onto the screen. The store's is copied as it is, alpha
+   * and all (it's opaque except where the lounge screen is clear for the video, and that
+   * has to stay see-through); an overlay's is blended over what's there.
+   */
+  _blit(store) {
+    this.blit.material.blending = store ? THREE.NoBlending : THREE.NormalBlending;
     this.renderer.render(this.blitScene, this.blitCamera);
   }
 

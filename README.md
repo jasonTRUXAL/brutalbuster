@@ -2,7 +2,7 @@
 
 A walk-in, first-person 1990s video rental store that runs in the browser. Every tape on the shelves is a video from one YouTube channel — VHS transfers of public-domain and otherwise unavailable tapes — shelved by genre, face-out, with procedurally generated box art built from each video's thumbnail.
 
-Walk the aisles, pick a box up off the shelf, turn it over to read the back, and hit **Watch now** to play it on an in-store CRT.
+Walk the aisles, pick a box up off the shelf and turn it over to read the back. **View on YouTube** opens it there, or **Grab** it, carry it to the VCR in the lounge, and watch it on the big screen.
 
 ## Quick start
 
@@ -53,7 +53,7 @@ Aisle colours come from `store.config.json`. Years are pulled from the title or 
 
 ### Branding
 
-The store name, subtitle and tagline are under `store` in `store.config.json`. They appear on the neon sign, splash screen, box art and TV. Run `npm run sync` after changing them.
+The store name, subtitle and tagline are under `store` in `store.config.json`. They appear on the neon sign, splash screen and box art. Run `npm run sync` after changing them.
 
 ## Controls
 
@@ -63,13 +63,16 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Look | mouse | drag on the right half |
 | Pick up a tape | click (or `E`) | tap it |
 | Turn the box over | `Space`, drag it, or **Flip box** | drag or tap it |
-| Watch | `Enter` or **Watch now** | **Watch now** |
+| Take it with you | `G` or **Grab** | **Grab** |
+| Watch it on YouTube | **View on YouTube** | **View on YouTube** |
 | Put it back | `Esc` | **Put back** |
+| Put the tape in the lounge's VCR | walk up to it holding a tape, click (or `E`) | walk up to it, tap |
+| Sit on a couch | aim at it and click (or `E`) | tap it |
 | Find a title | `F` | **Find a tape** |
 | Play a prize-corner machine | aim at it and click (or `E`) | tap it |
 | Turn the gacha crank | `Space`, or **Turn the crank** | **Turn the crank** |
 | Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
-| Stand back up | `Esc`, or **Stand up** | **Stand up** |
+| Stand back up | `Esc`, **Stand up**, or start walking | **Stand up** |
 | PS1 Mode on / off | `P`, or **PS1 mode** | **PS1** |
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
@@ -90,8 +93,8 @@ Every capsule and jackpot fires a `bb:prize` browser event. The always-win rewar
 
 ### The rooms off the sales floor
 
-- **The lounge.** A hallway in the left wall, near the front (under the pink **LOUNGE** sign), leads to a living-room-style lounge: two couches facing a projector screen, with curtains, a popcorn machine and a floor lamp. The screen runs a "coming attractions" slideshow of box art. It's decorative for now, but it's built so a video can play on that screen later.
-- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams: every stream from [moose2](https://www.youtube.com/moose2), shelved by the year it went up, newest year first. Within a year the tapes run in the order they were uploaded, so a playthrough's parts read left to right, Part One to Finale. Start on the gondola in the middle (this year and last), then go round the walls. The gondola's front end shows the latest stream. Pick up, flip and watch work the same as on the sales floor, and **Find a tape** has a **Streams** button.
+- **The lounge.** A hallway in the left wall, near the front (under the pink **LOUNGE** sign), leads to a living-room-style lounge: two couches facing a projector screen, with curtains, a popcorn machine and a floor lamp. There's a VCR in the cabinet under the screen, its clock blinking 12:00. Pick a tape up anywhere in the store, **Grab** it (it rides along at the bottom of your view), and walk up to the VCR: it asks for the tape. Put it in and the screen goes VCR-blue with PLAY in the corner, then the video plays on the big screen, and keeps playing while you walk round (fainter as you go). Put another tape in and the first goes back on its shelf, as it does when the tape ends. With nothing in, a VHS logo bounces round the screen. You can sit on either couch (three seats each); that's all sitting does.
+- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams: every stream from [moose2](https://www.youtube.com/moose2), shelved by the year it went up, newest year first. Within a year the tapes run in the order they were uploaded, so a playthrough's parts read left to right, Part One to Finale. Start on the gondola in the middle (this year and last), then go round the walls. The gondola's front end shows the latest stream. Pick up, flip and grab work the same as on the sales floor, and **Find a tape** has a **Streams** button.
 - **Extras.** A door in the back right-hand corner, past New Releases, leads to the Extras back room.
 
 Extras has empty **Coming Soon** shelves (and a few boxes of stock) until its videos are chosen. See [docs/roadmap.md](docs/roadmap.md).
@@ -116,13 +119,13 @@ src/
   layout.js      floor-plan solver: store size, shelf runs, which tape goes where, the other rooms and every wall
   store.js       the sales floor: room, shelving, signs, checkout counter, entrance, lights
   rooms.js       the rooms off it: hallway, lounge and Streams wing, Extras back room
-  lounge.js      the lounge: couches, projector, screen and its slideshow
+  lounge.js      the lounge: couches, projector, screen (bouncing logo / blue PLAY / clear), the VCR
   fixtures.js    building blocks shared by both: batching, walls, floors, shelving, signs, posters
   tapes.js       instanced VHS cases + cover sleeves
   atlas.js       cover texture atlas
   covers.js      box art generator (front, back, spine) + thumbnail loading
   textures.js    carpet, ceiling tiles, signs, neon
-  inspect.js     the picked-up tape (fly-in animation, spin, flip)
+  inspect.js     the picked-up tape (fly-in animation, spin, flip) and the one you're carrying
   ps1.js         PS1 Mode: low-res render, shader patches, sharp thumbnail pass
   controls.js    first-person movement, collision, touch joystick
   crt.js         the TV above the counter
@@ -131,7 +134,8 @@ src/
   gacha.js       gacha play: crank, capsule drop and open
   luckyhit.js    Lucky Hit play: aiming, the drop, landing and the prize
   luckyhit-physics.js  board of the day + 2D ball physics + the daily check (pure, unit tested)
-  ui.js          splash, HUD, details panel, player, directory
+  theater.js     the lounge working: the VCR, the YouTube player lined up behind the screen, the couches
+  ui.js          splash, HUD, details panel, the couch's Stand up, directory
 scripts/
   sync-youtube.mjs   builds public/catalog.json from the channel (network + files)
   lib/               parsing and shelving rules (pure, unit tested)
@@ -166,7 +170,7 @@ It's a static site: `npm run build` produces a `dist/` folder you can host anywh
 
 ## What's next
 
-- **Viewing experience.** Right now **Watch now** opens a YouTube embed inside a CRT-styled frame. Possible next steps: play the tape on the lounge's projector screen, or add a "rewinding…" insert animation.
+- **The lounge VCR.** Possible next steps: a way to eject a tape without putting another in, a "rewinding…" pause, or picking up where you left off.
 - **Stock Extras** once its list is ready.
 - Ambient store audio (fluorescent hum, muzak, the clack of a case).
 - A rentals counter that remembers what you've watched.
