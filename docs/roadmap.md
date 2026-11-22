@@ -17,6 +17,22 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 - **Lucky Hit:** playable. It's the Shenmue street drop board: aim, drop one slow ball, and every slot wins. The nails change daily (board of the day, checked by simulation). The narrow gold jackpot slot (about 4% of drops) is reserved for rare prizes. It replaced the classic pachinko machine on 2026-10-28.
 - **Next: the reward system.** The rule is "you always win something; it's just what you win". Every capsule and jackpot fires a `bb:prize` event carrying `{ kind, machine, … }`. Ideas so far: each gacha machine's theme maps to a part of the store (Tape Pals → Mystery Tapes, Snack Pals → brutalfoods, Game Pals → the game reviews, TV Pals → Televoid!), and a capsule could contain a tape from that section.
 
+## PS1 Mode (built)
+
+Live since 2026-11-04 (commit 8ac00de). The **PS1 mode** button (or `P`, or `?ps1` in the address) draws the whole store like a 1995 PlayStation game, with the video thumbnails as the one exception. In PS1 Mode you get:
+
+- a 240-pixel picture with chunky pixels;
+- wobbly polygons;
+- warping, point-sampled textures;
+- 15-bit dithered colour;
+- distance fog.
+
+Box covers, posters, the standee, the counter TV and the held tape are redrawn sharp on top. How it works is in `src/ps1.js` and the "PS1 Mode flags" convention in CLAUDE.md.
+
+- **Fixed alongside it:** the picked-up tape had been drawn *under* the dark backdrop, at about 30% brightness. Now it's in front of it, in both modes.
+- **Also fixed:** signs flickered into the boards behind them when polygons wobbled. Large textured surfaces are now split into tiles so the texture warp stays mild.
+- **Possible later:** pixelate the box design around each thumbnail, keeping only the thumbnail itself sharp. Today the whole box front, title included, stays sharp.
+
 ## Area notes
 
 ### 2. Theater room
@@ -36,3 +52,4 @@ Brutalbuster is a walk-in home for brutalmoose's video library. It's planned as 
 ## Decisions
 
 - **2026-10-06:** The main store shelves the **entire** main channel, not a subset. "My response." stays on the shelves. Playlist notes and the alternative we considered are in [channel-notes.md](channel-notes.md).
+- **2026-11-04:** PS1 Mode applies to everything except the video thumbnails, as asked. The whole box front counts as "thumbnail" so titles stay readable. The choice is per browser (remembered), and off by default.
