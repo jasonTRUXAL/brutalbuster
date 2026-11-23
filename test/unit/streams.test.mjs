@@ -120,3 +120,28 @@ test('an archive too big for the longest room keeps its newest tapes', () => {
   assert.ok(newest.slice(0, 100).every((v) => shelved.has(v.id)), 'the newest tapes are all shelved');
   assert.ok(plan.streams.z1 - plan.streams.z0 < 45, 'the room stops growing at some point');
 });
+
+test('a game streamed over several nights is shelved as one box set holding its tapes', () => {
+  const raw = rawArchive(120, 3);
+  // three runs: a 4-night game, a 2-night one, and a show that ran for 3 weeks
+  const runs = [['Shenmue (Part 1)', 'Shenmue (Part 2)', 'Shenmue (Part 3)', 'Shenmue (Finale)'], ['Myst [Part One]', 'Myst [Finale]'], ['games | Bingo98', 'more games | Bingo98', 'the last games | Bingo98']];
+  let k = 10;
+  for (const run of runs) {
+    [...run].reverse().forEach((title, i) => (raw.videos[k + i * 2].title = title)); // (newest first; one-offs in between)
+    k += 20;
+  }
+  const catalog = catalogOf(40, 6);
+  addArea(catalog, STREAMS, raw);
+  const plan = planStore(catalog);
+  assert.equal(new Set(plan.boxes.map((b) => b.boxSet.id)).size, 3);
+  const shelved = new Set(plan.slots.map((s) => s.video.id));
+  assert.ok(catalog.areas.streams.videos.every((v) => shelved.has(v.id)), 'every stream is on a shelf (or in a box)');
+  for (const box of plan.boxes) {
+    assert.equal(box.parts.length, box.boxSet.videos.length);
+    assert.ok(box.parts.every((s, i) => s.box === box && s.part === i && s.col === box.col && s.row === box.row));
+    assert.ok(box.col + 1 <= box.face.perRow, 'the box fits on its shelf');
+  }
+  // a boxed tape isn't also shelved on its own
+  const loose = plan.slots.filter((s) => !s.box && s.section.kind === 'genre' && s.face.room === 'streams');
+  assert.ok(loose.every((s) => !plan.boxes.some((b) => b.boxSet.videos.includes(s.video))));
+});

@@ -446,6 +446,112 @@ export function drawCover(ctx, w, h, d) {
   ctx.restore();
 }
 
+// ---------------------------------------------------------------- box sets (Streams)
+
+/** What a box set's front shows: `set` from boxsets.js, plus the Streams colour. */
+export function boxSetData(set, color, store) {
+  const years = set.videos.map((v) => String(v.publishedAt).slice(0, 4)).filter(Boolean);
+  const first = years[0];
+  const last = years[years.length - 1];
+  return {
+    seed: hash(set.id),
+    title: set.title.toUpperCase(),
+    count: set.videos.length,
+    years: first && last && first !== last ? `${first}–${last}` : first || '',
+    color: color || '#b388ff',
+    thumbs: set.videos.map(getThumb).filter(Boolean).slice(0, 3),
+    store,
+  };
+}
+
+/**
+ * A box set's front, on a 320×280 design grid (two tapes wide): a slipcase with the
+ * game's name, up to three of its streams' thumbnails as film frames, and a badge
+ * saying how many tapes are inside.
+ */
+export function drawBoxSet(ctx, w, h, d) {
+  const s = w / 320;
+  ctx.save();
+  ctx.clearRect(0, 0, w, h);
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#1a0f33');
+  bg.addColorStop(1, '#07040f');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  // the top band: whose streams these are
+  ctx.fillStyle = d.color;
+  ctx.fillRect(0, 0, w, 22 * s);
+  ctx.fillStyle = isLight(d.color) ? '#111' : '#fff';
+  ctx.font = `${13 * s}px ${FONT.bebas}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('THE COMPLETE STREAM COLLECTION', w / 2, 12 * s, w - 20 * s);
+  // film frames
+  const n = Math.max(1, Math.min(3, d.thumbs.length || 3));
+  const gap = 6 * s;
+  const fw = (w - 20 * s - gap * (n - 1)) / n;
+  const fh = 86 * s;
+  for (let i = 0; i < n; i++) {
+    const x = 10 * s + i * (fw + gap);
+    const y = 30 * s;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - 2 * s, y - 2 * s, fw + 4 * s, fh + 4 * s);
+    if (d.thumbs[i]) drawThumbCover(ctx, d.thumbs[i], x, y, fw, fh, 0.4);
+    else drawArt(ctx, x, y, fw, fh, d.seed + i * 977, d.color);
+    // sprocket holes
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    for (let k = 0; k < 6; k++) {
+      ctx.fillRect(x + (k + 0.3) * (fw / 6), y - 1.6 * s, fw / 12, 1.4 * s);
+      ctx.fillRect(x + (k + 0.3) * (fw / 6), y + fh + 0.2 * s, fw / 12, 1.4 * s);
+    }
+  }
+  // the title
+  ctx.fillStyle = '#fff';
+  const f = fit(ctx, d.title, (z) => `${z}px ${FONT.anton}`, w - 70 * s, 92 * s, 2, 44 * s, 12 * s, 1.0);
+  const blockH = f.lines.length * f.lineH;
+  drawLines(ctx, f, w / 2 - 22 * s, 124 * s + (92 * s - blockH) / 2, w - 70 * s, 'center', { color: 'rgba(0,0,0,.6)', width: 3 * s });
+  // the badge: how many tapes
+  ctx.save();
+  ctx.translate(w - 34 * s, 168 * s);
+  ctx.rotate(-0.18);
+  ctx.fillStyle = '#ffc61a';
+  ctx.beginPath();
+  ctx.arc(0, 0, 27 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${24 * s}px ${FONT.anton}`;
+  ctx.fillText(String(d.count), 0, -6 * s);
+  ctx.font = `${8.5 * s}px ${FONT.bungee}`;
+  ctx.fillText('TAPES', 0, 13 * s, 44 * s);
+  ctx.restore();
+  // a row of little tapes along the bottom, one per stream (up to 12)
+  const shown = Math.min(d.count, 12);
+  const tw = 14 * s;
+  const tx0 = w / 2 - (shown * (tw + 3 * s) - 3 * s) / 2;
+  for (let i = 0; i < shown; i++) {
+    ctx.fillStyle = i % 2 ? d.color : '#f4ecd8';
+    ctx.fillRect(tx0 + i * (tw + 3 * s), 224 * s, tw, 20 * s);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(tx0 + i * (tw + 3 * s) + 3 * s, 230 * s, tw - 6 * s, 6 * s);
+  }
+  // footer
+  vhsLogo(ctx, 10 * s, 256 * s, s, 'rgba(255,255,255,.8)');
+  ctx.fillStyle = d.color;
+  ctx.font = `${15 * s}px ${FONT.vt}`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${d.count}-TAPE BOX SET${d.years ? `  ·  ${d.years}` : ''}`, w - 10 * s, 262 * s);
+  // sleeve wear
+  const v = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, w * 0.62);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,.35)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
 function coverClassic(ctx, w, h, s, d) {
   ctx.fillStyle = '#0c0c10';
   ctx.fillRect(0, 0, w, h);

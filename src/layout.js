@@ -4,8 +4,11 @@
 import * as THREE from 'three';
 import { DIM, SLOTS_PER_BAY } from './config.js';
 import { rng, shuffle, hash } from './util.js';
+import { findBoxSets } from './boxsets.js';
 
 const MAX_COPIES = 4;
+/** A box set stands as wide as this many tapes. */
+export const BOX_SPAN = 2;
 // Fill eye-level shelves first so partly stocked bays look intentional.
 const ROW_PRIORITY = [3, 2, 4, 1, 0];
 // ...except in an archive, which reads like a page: top shelf first.
@@ -54,16 +57,23 @@ function chooseSize(needBays) {
   return fits[0];
 }
 
+/** How many slots wide a shelf item is: a tape is 1, a box set BOX_SPAN. */
+const widthOf = (it) => (it?.boxSet ? BOX_SPAN : 1);
+
 /** Spread `slots` slots across `items`, copies adjacent, max `maxCopies` each. */
 function withCopies(items, slots, maxCopies) {
   if (!items.length) return [];
-  const per = Math.min(maxCopies, Math.max(1, Math.floor(slots / items.length)));
-  let extra = Math.min(items.length, Math.max(0, slots - per * items.length));
+  const units = items.reduce((n, it) => n + widthOf(it), 0);
+  const per = Math.min(maxCopies, Math.max(1, Math.floor(slots / units)));
+  let extra = Math.min(units, Math.max(0, slots - per * units));
   if (per >= maxCopies) extra = 0;
   const out = [];
+  let used = 0;
   for (const it of items) {
-    const n = per + (extra-- > 0 ? 1 : 0);
-    for (let i = 0; i < n && out.length < slots; i++) out.push(it);
+    const w = widthOf(it);
+    const more = extra >= w; // (an extra copy only where it fits in what's spare)
+    if (more) extra -= w;
+    for (let i = 0; i < per + (more ? 1 : 0) && used + w <= slots; i++, used += w) out.push(it);
   }
   return out;
 }
@@ -115,9 +125,21 @@ function snakeBays(faces, sections) {
  * from one bay (or face) to the next. Shelves fill in `face.rows` order (eye level first
  * unless the face says otherwise); a `rowMajor` face runs each row along the whole face.
  */
-function fillSlots(faces) {
+function fillSlots(faces, boxes = []) {
   const slots = [];
   const cursor = new Map();
+  // A box set stands across BOX_SPAN slots. Its tapes are slots too (so picking one up,
+  // carrying it and the VCR work as for any tape), all at the box's middle; the box
+  // itself goes in `boxes`. One that won't fit at the end of a shelf starts the next.
+  const placeBox = (item, face, bay, row, col, sec) => {
+    const box = { boxSet: item.boxSet, face, bay, row, col: col + (BOX_SPAN - 1) / 2, section: sec, parts: [] };
+    item.boxSet.videos.forEach((video, part) => {
+      const s = { video, face, bay, row, col: box.col, section: sec, box, part };
+      slots.push(s);
+      box.parts.push(s);
+    });
+    boxes.push(box);
+  };
   for (const face of faces) {
     const rows = face.rows || ROW_PRIORITY;
     if (face.rowMajor) {
@@ -138,8 +160,13 @@ function fillSlots(faces) {
       let k = cursor.get(sec) || 0;
       for (const row of rows) {
         for (let col = 0; col < face.perRow; col++) {
-          const video = sec.items?.[k++];
-          if (video) slots.push({ video, face, bay, row, col, section: sec });
+          const item = sec.items?.[k];
+          if (item?.boxSet) {
+            if (col + BOX_SPAN > face.perRow) break;
+            placeBox(item, face, bay, row, col, sec);
+            col += BOX_SPAN - 1;
+          } else if (item) slots.push({ video: item, face, bay, row, col, section: sec });
+          k++;
         }
       }
       cursor.set(sec, k);
@@ -334,6 +361,9 @@ export function planStore(catalog) {
   return {
     W, D, K, M, zFront, zBack, dims,
     faces, slots, sections, newSection, endcapSections, gondolas, aisleSigns, colliders,
+    // Streams' box sets: { boxSet, face, bay, row, col, section, parts: [slot…] } (their
+    // tapes are in `slots` too, with `box` and `part` set)
+    boxes: annex.boxes,
     counter, door,
     walls: annex.walls,
     portals: annex.portals,
@@ -545,7 +575,7 @@ function planAnnex(d, streamsArea) {
     // playthrough's parts read left to right; spare bays go to the busiest years
     shareBays(archive, shelving.bays - need);
     for (const grp of archive) {
-      const slots = grp.bays * SLOTS_PER_BAY;
+      const slots = grp.bays * grp.perBay;
       sections.push({
         key: grp.aisle.id, label: grp.aisle.name, color: grp.aisle.color, kind: 'genre', bays: grp.bays,
         items: withCopies(grp.items.slice(-slots), slots, MAX_COPIES), // (too many: keep the newest)
@@ -616,8 +646,9 @@ function planAnnex(d, streamsArea) {
     { rooms: ['main', 'extras'], x0: bd.x0, x1: bd.x1, z0: ez1 - P, z1: ez1 + P },
   ].map((p) => ({ ...p, y0: 0, y1: H }));
 
-  const slots = fillSlots(stocked ? [...chain, endcaps.front, endcaps.rear] : []);
-  return { walls, colliders, slots, portals, rooms: [main, hall, lounge, streams, extras], hall, lounge, streams, extras };
+  const boxes = [];
+  const slots = fillSlots(stocked ? [...chain, endcaps.front, endcaps.rear] : [], boxes);
+  return { walls, colliders, slots, boxes, portals, rooms: [main, hall, lounge, streams, extras], hall, lounge, streams, extras };
 }
 
 /** Which room is the point in? (The sales floor if it's in none, e.g. out on the street.) */
@@ -651,15 +682,26 @@ export function visibleRooms(plan, at, sees) {
 const MAX_STREAMS_GROWTH = 25; // bays' worth (30 m): past that, the oldest tapes don't fit
 const uploadOrder = (a, b) => String(a.publishedAt).localeCompare(String(b.publishedAt)) || a.id.localeCompare(b.id);
 
-/** An archive area's tapes grouped by aisle (in the catalog's order), oldest upload first. */
+/**
+ * An archive area's tapes grouped by aisle (in the catalog's order), oldest upload first.
+ * A game's run of streams is one box set (boxsets.js), shelved where its first part would
+ * be (a run that carries on into the next year stays in the year it started).
+ */
 function archiveGroups(area) {
   if (!area?.videos?.length) return [];
+  const { setOf } = findBoxSets(area.videos);
   const byAisle = new Map(area.aisles.map((a) => [a.id, []]));
-  for (const v of area.videos) byAisle.get(v.aisle)?.push(v);
+  for (const v of area.videos) {
+    const set = setOf.get(v.id);
+    if (set && set.videos[0] !== v) continue;
+    byAisle.get(v.aisle)?.push(set ? { boxSet: set, publishedAt: v.publishedAt, id: set.id } : v);
+  }
+  // (a box can't start in a shelf's last slot: allow for one empty slot per shelf)
+  const perBay = SLOTS_PER_BAY - DIM.SHELF_COUNT;
   return area.aisles
-    .map((aisle) => ({ aisle, items: byAisle.get(aisle.id).sort(uploadOrder) }))
+    .map((aisle) => ({ aisle, items: byAisle.get(aisle.id).sort(uploadOrder), perBay }))
     .filter((g) => g.items.length)
-    .map((g) => ({ ...g, bays: Math.ceil(g.items.length / SLOTS_PER_BAY) }));
+    .map((g) => ({ ...g, bays: Math.ceil(g.items.reduce((n, it) => n + widthOf(it), 0) / perBay) }));
 }
 
 /**

@@ -328,6 +328,24 @@ test('a held tape is in the address bar, and Copy link gives a link to it', asyn
   expect(new URL(page.url()).searchParams.has('tape')).toBe(false);
 });
 
+test('Streams: take a tape out of a box set and swap it for the next', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'same panel on a phone');
+  const box = await page.evaluate(() => window.__bb.plan.boxes.findIndex((b) => b.boxSet.videos.length >= 2));
+  test.skip(box < 0, 'this catalog has no box sets');
+  const [first, second] = await page.evaluate((i) => window.__bb.plan.boxes[i].boxSet.videos.slice(0, 2).map((v) => v.title), box);
+  await page.evaluate((i) => window.__bb.openBox(i), box);
+  await advance(page, 0.8);
+  await expect(page.locator('.ip-title')).toHaveText(first);
+  await expect(page.locator('.ip-set')).toBeVisible();
+  await expect(page.locator('.ip-set-label')).toContainText('Tape 1 of');
+  await page.keyboard.press('ArrowRight');
+  await advance(page, 0.3);
+  await expect(page.locator('.ip-title')).toHaveText(second);
+  await expect(page.locator('.ip-set-label')).toContainText('Tape 2 of');
+  await page.locator('[data-act="prevTape"]').click();
+  await expect(page.locator('.ip-title')).toHaveText(first);
+});
+
 test('find a tape in the directory and walk to it', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'covered by the touch test');
   const title = await page.evaluate(() => window.__bb.catalog.videos[5 % window.__bb.catalog.videos.length].title);

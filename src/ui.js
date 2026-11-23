@@ -206,11 +206,25 @@ export class UI {
     $('.tt-hint', this.tooltip).textContent = info.hint;
   }
 
-  showInspect(video, aisle, { canGrab, note }) {
+  /**
+   * The held-tape panel. `set` ({ title, part, count }) when the tape came out of a box
+   * set: a strip with ◀ ▶ to swap it for the box's other tapes. `swapped` skips the
+   * panel's slide-in (the same box, another tape).
+   */
+  showInspect(video, aisle, { canGrab, note, set = null, swapped = false }) {
     const p = $('.inspect-panel');
-    p.style.animation = 'none';
-    void p.offsetWidth;
-    p.style.animation = '';
+    if (!swapped) {
+      p.style.animation = 'none';
+      void p.offsetWidth;
+      p.style.animation = '';
+    }
+    const strip = $('.ip-set', p);
+    strip.hidden = !set;
+    if (set) {
+      $('.ip-set-label', strip).innerHTML = `<b>${escapeHtml(set.title)}</b>Tape ${set.part + 1} of ${set.count} in the box`;
+      $('[data-act="prevTape"]', strip).disabled = set.part === 0;
+      $('[data-act="nextTape"]', strip).disabled = set.part === set.count - 1;
+    }
     $('.ip-aisle .dot').style.background = aisle?.color || '#ffc61a';
     $('.ip-aisle .name').textContent = shelfName(aisle).toUpperCase();
     $('.ip-title').textContent = video.title;

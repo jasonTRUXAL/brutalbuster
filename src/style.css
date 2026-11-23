@@ -343,6 +343,11 @@ body.drag-look #crosshair { display: none; }
 .ip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ip-yt { text-decoration: none; color: var(--cyan); }
 .ip-share.done { color: var(--yellow); }
+.ip-set { display: flex; align-items: center; gap: 8px; margin: 8px 0 2px; padding: 6px 8px; border-radius: 8px; background: rgba(179, 136, 255, 0.14); border: 1px solid rgba(179, 136, 255, 0.35); }
+.ip-set[hidden] { display: none; }
+.ip-set .btn { padding: 4px 10px; min-width: 0; }
+.ip-set-label { flex: 1; text-align: center; font-size: 0.9rem; line-height: 1.25; color: #e6dcff; }
+.ip-set-label b { display: block; color: #fff; letter-spacing: 0.04em; }
 .ip-link { width: 100%; margin-top: 6px; padding: 6px 8px; font: inherit; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; }
 .splash-tape { margin: -8px 0 18px; font-size: 1rem; color: var(--muted); }
 .splash-tape strong { color: #fff; }

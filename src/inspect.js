@@ -76,6 +76,41 @@ export class Inspector {
 
   /** Begin the pick-up animation from a shelf slot's world matrix. */
   open(video, slotIndex, worldMatrix, mainCamera) {
+    this._build(video, slotIndex);
+
+    this.camera.fov = mainCamera.fov;
+    this.camera.aspect = mainCamera.aspect;
+    this.camera.updateProjectionMatrix();
+
+    // shelf pose expressed in camera space (the held scene's camera sits at the origin)
+    mainCamera.updateMatrixWorld();
+    _m.copy(mainCamera.matrixWorldInverse).multiply(worldMatrix);
+    _m.decompose(this.startPos, this.startQuat, _s);
+    this.mesh.position.copy(this.startPos);
+    this.mesh.quaternion.copy(this.startQuat);
+
+    this.spin = { yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0 };
+    this.state = 'in';
+    this.t = 0;
+  }
+
+  /**
+   * Swap the tape in your hands for another from the same box set, in place (it goes
+   * back into the box, if you put it back, from where the first one came).
+   */
+  swap(video, slotIndex) {
+    if (!this.mesh || this.state === 'out') return false;
+    const pos = this.mesh.position.clone();
+    const quat = this.mesh.quaternion.clone();
+    this._build(video, slotIndex);
+    this.mesh.position.copy(pos);
+    this.mesh.quaternion.copy(quat);
+    this.spin.targetYaw = Math.round(this.spin.targetYaw / (2 * Math.PI)) * 2 * Math.PI; // front on
+    this.spin.yaw = this.spin.targetYaw - 0.6; // (a little turn, so you see it change)
+    return true;
+  }
+
+  _build(video, slotIndex) {
     this.dispose();
     this.video = video;
     this.slot = slotIndex;
@@ -103,21 +138,6 @@ export class Inspector {
     ];
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(DIM.CASE_W, DIM.CASE_H, DIM.CASE_D), mats);
     this.subjects.add(this.mesh);
-
-    this.camera.fov = mainCamera.fov;
-    this.camera.aspect = mainCamera.aspect;
-    this.camera.updateProjectionMatrix();
-
-    // shelf pose expressed in camera space (the held scene's camera sits at the origin)
-    mainCamera.updateMatrixWorld();
-    _m.copy(mainCamera.matrixWorldInverse).multiply(worldMatrix);
-    _m.decompose(this.startPos, this.startQuat, _s);
-    this.mesh.position.copy(this.startPos);
-    this.mesh.quaternion.copy(this.startQuat);
-
-    this.spin = { yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0 };
-    this.state = 'in';
-    this.t = 0;
   }
 
   /** Put it back; resolves when the tape is back on the shelf. */

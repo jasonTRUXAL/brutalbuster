@@ -4,7 +4,7 @@ import { loadFonts } from './fonts.js';
 import { loadCatalog, fetchCatalog, addArea, shelfName, AREAS } from './catalog.js';
 import { planStore } from './layout.js';
 import { CoverAtlas } from './atlas.js';
-import { TapeShelves } from './tapes.js';
+import { TapeShelves, BoxSetShelves } from './tapes.js';
 import { buildStore } from './store.js';
 import { RoomCulling } from './rooms.js';
 import { Theater } from './theater.js';
@@ -88,9 +88,13 @@ async function main() {
 
   const tapes = new TapeShelves(plan.slots, atlas);
   scene.add(tapes.group);
+  // Streams' box sets (a game's run of streams in one box); their tapes are slots too
+  const boxSets = new BoxSetShelves(plan.boxes, catalog);
+  scene.add(boxSets.group);
+  const slotIndex = new Map(plan.slots.map((s, i) => [s, i]));
   const store = buildStore(scene, plan, catalog);
   const controls = new PlayerControls(camera, canvas, { colliders: store.colliders, bounds: plan.bounds, spawn: plan.spawn });
-  const culling = new RoomCulling(plan, store.annex.groups, tapes.covers);
+  const culling = new RoomCulling(plan, store.annex.groups, [...tapes.covers, ...boxSets.meshes]);
   const inspector = new Inspector(catalog);
   // the lounge's VCR, projector screen and couches
   const theater = new Theater({ plan, parts: store.annex.lounge, canvas });
@@ -154,11 +158,16 @@ async function main() {
       return { aisle: 'Prize corner', title: g.kind === 'gacha' ? `${g.title} capsule machine` : `${g.title} drop board`, hint: `${press} to ${verb}` };
     }
     if (t.kind === 'seat') return { aisle: 'Lounge', title: 'Couch', hint: `${press} to sit down` };
+    if (t.kind === 'boxset') {
+      const b = plan.boxes[t.box];
+      return { aisle: `${b.boxSet.videos.length}-tape box set`, title: b.boxSet.title, hint: `${press} to take out tape 1` };
+    }
     return { aisle: 'VCR', title: 'Insert tape', hint: `${press} to put in “${carried.video.title}”` };
   }
 
   /** Point the crosshair at something (or nothing): highlight it and say what it is. */
   function setTarget(t) {
+    boxSets.setHover(t?.kind === 'boxset' ? t.box : -1);
     const slot = t?.kind === 'tape' ? t.slot : -1;
     if (slot !== hovered) {
       hovered = slot;
@@ -211,12 +220,43 @@ async function main() {
     tapes.hide(slot);
     inspector.open(video, slot, tapes.worldMatrix(slot), camera);
     controls.unlock();
+    showHeld(slot);
+  }
+
+  /** Fill in the held-tape panel for the tape from `slot`. */
+  function showHeld(slot, swapped = false) {
+    const s = plan.slots[slot];
+    const video = s.video;
     tapeInAddress(video.id);
     const aisle = catalog.aisleById.get(video.aisle);
     ui.showInspect(video, aisle, {
       canGrab: Boolean(video.youtubeId),
       note: video.youtubeId ? '' : 'Display copy — this sample tape isn’t linked to a video yet.',
+      set: s.box ? { title: s.box.boxSet.title, part: s.part, count: s.box.parts.length } : null,
+      swapped,
     });
+  }
+
+  /** The box set's tapes that are in the box (not in your hands already, or the VCR). */
+  const inBox = (box) => box.parts.map((p) => slotIndex.get(p)).filter((i) => i === heldSlot || !tapes.hiddenSet?.has(i));
+
+  /** Take a tape out of a box set: the first one still in it. */
+  function openBox(i) {
+    const first = inBox(plan.boxes[i])[0];
+    if (first !== undefined) pickUp(first);
+  }
+
+  /** Swap the tape in your hands for the box's next (+1) or previous (-1) one. */
+  function swapTape(dir) {
+    const s = plan.slots[heldSlot];
+    if (mode !== 'inspect' || !s?.box || inspector.state === 'out') return;
+    const avail = inBox(s.box);
+    const next = dir > 0 ? avail.find((i) => plan.slots[i].part > s.part) : avail.reverse().find((i) => plan.slots[i].part < s.part);
+    if (next === undefined || !inspector.swap(plan.slots[next].video, next)) return;
+    tapes.show(heldSlot); // (back in the box)
+    tapes.hide(next);
+    heldSlot = next;
+    showHeld(next, true);
   }
   inspector.onClosed = (slot) => tapes.show(slot);
 
@@ -359,6 +399,8 @@ async function main() {
     controls.lock();
   });
   ui.on('share', shareTape);
+  ui.on('prevTape', () => swapTape(-1));
+  ui.on('nextTape', () => swapTape(1));
   ui.on('resume', () => {
     if (isTouch || controls.dragLook) setMode('walk');
     else controls.lock();
@@ -393,6 +435,7 @@ async function main() {
     else if (t?.kind === 'game') enterPlay(t.game);
     else if (t?.kind === 'seat') sitDown(t.seat);
     else if (t?.kind === 'tape') pickUp(t.slot);
+    else if (t?.kind === 'boxset') openBox(t.box);
   }
 
   /** Act on whatever the crosshair (or the drag-look cursor) is on. */
@@ -469,6 +512,9 @@ async function main() {
       } else if (e.code === 'KeyG' || e.code === 'Enter') {
         e.preventDefault();
         grab(true);
+      } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        e.preventDefault();
+        swapTape(e.code === 'ArrowRight' ? 1 : -1);
       }
     }
   });
@@ -561,6 +607,12 @@ async function main() {
     const far = DIM.REACH + 0.4;
     const game = arcade.pick(raycaster.ray, far);
     if (game && (!best || game.distance < best.distance)) best = { kind: 'game', key: `game:${arcade.games.indexOf(game.game)}`, game: game.game, distance: game.distance };
+    const bh = boxSets.hit(raycaster.ray, raycaster.far);
+    if (bh && (!best || bh.distance < best.distance)) {
+      const n = plan.boxes[bh.index].face.n;
+      toCam.copy(camera.position).sub(bh.point);
+      if (toCam.x * n.x + toCam.z * n.z > 0) best = { kind: 'boxset', key: `box:${bh.index}`, box: bh.index, distance: bh.distance };
+    }
     const seat = theater.pickSeat(raycaster.ray, far);
     if (seat && (!best || seat.distance < best.distance)) best = { kind: 'seat', key: `seat:${seat.index}`, seat: seat.seat, distance: seat.distance };
     return best;
@@ -577,6 +629,7 @@ async function main() {
     if (!(await loadThumb(v))) return;
     paintCover(v);
     store.refreshArt(v);
+    boxSets.refresh(v);
   };
   mapLimit(withThumbs, 12, async (v) => {
     await thumbFor(v);
@@ -613,6 +666,7 @@ async function main() {
     if (flushTimer > 0.35) {
       flushTimer = 0;
       atlas.flush();
+      boxSets.flush();
     }
   }
 
@@ -641,7 +695,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
       get target() { return target; },
