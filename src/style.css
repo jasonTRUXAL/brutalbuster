@@ -342,6 +342,10 @@ body.drag-look #crosshair { display: none; }
 .ip-desc { margin: 14px 0 18px; font-size: 1.02rem; line-height: 1.45; color: #d7d4e6; white-space: pre-line; max-height: 34vh; overflow: auto; }
 .ip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ip-yt { text-decoration: none; color: var(--cyan); }
+.ip-share.done { color: var(--yellow); }
+.ip-link { width: 100%; margin-top: 6px; padding: 6px 8px; font: inherit; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; }
+.splash-tape { margin: -8px 0 18px; font-size: 1rem; color: var(--muted); }
+.splash-tape strong { color: #fff; }
 .ip-note { margin: 12px 0 0; font-size: 0.92rem; color: var(--muted); }
 
 /* ------------------------------------------------------------ prize corner play panel */

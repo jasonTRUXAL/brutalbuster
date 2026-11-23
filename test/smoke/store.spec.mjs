@@ -309,6 +309,25 @@ test('pick up a tape, flip it, put it back', async ({ store: page }, testInfo) =
   expect(await page.evaluate(() => window.__bb.tapes.hiddenSet.size)).toBe(0);
 });
 
+test('a held tape is in the address bar, and Copy link gives a link to it', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'phones use the share sheet');
+  const slot = await genreSlot(page, 2);
+  const id = await page.evaluate((i) => {
+    window.__bb.pickUp(i);
+    return window.__bb.plan.slots[i].video.id;
+  }, slot);
+  await advance(page, 0.8);
+  expect(new URL(page.url()).searchParams.get('tape')).toBe(id);
+  expect(new URL(page.url()).searchParams.has('manual')).toBe(true); // other settings kept
+  await page.locator('.ip-share').click();
+  // (headless browsers may refuse the clipboard: then the link is shown to copy by hand)
+  await expect(page.locator('.ip-share.done, .ip-link').first()).toBeVisible();
+  if (await page.locator('.ip-link').isVisible()) await expect(page.locator('.ip-link')).toHaveValue(new RegExp(`\\?tape=${id}$`));
+  await page.locator('[data-act="back"]').click();
+  await advance(page, 0.6);
+  expect(new URL(page.url()).searchParams.has('tape')).toBe(false);
+});
+
 test('find a tape in the directory and walk to it', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'covered by the touch test');
   const title = await page.evaluate(() => window.__bb.catalog.videos[5 % window.__bb.catalog.videos.length].title);

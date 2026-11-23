@@ -136,6 +136,7 @@ async function main() {
   const setMode = (m) => {
     mode = m;
     ui.setMode(m);
+    if (m !== 'inspect' && m !== 'splash') tapeInAddress(null);
     controls.enabled = m === 'walk';
     inspector.showCarry = m !== 'play'; // (it would sit in front of the machine)
     if (m !== 'walk') setTarget(null);
@@ -210,6 +211,7 @@ async function main() {
     tapes.hide(slot);
     inspector.open(video, slot, tapes.worldMatrix(slot), camera);
     controls.unlock();
+    tapeInAddress(video.id);
     const aisle = catalog.aisleById.get(video.aisle);
     ui.showInspect(video, aisle, {
       canGrab: Boolean(video.youtubeId),
@@ -303,11 +305,60 @@ async function main() {
     pickUp(i);
   }
 
+  // ------------------------------------------------------------ tape links
+  // `?tape=<id>` (or a shared t/<id>/ page, which forwards here) puts you in front of
+  // that tape with it in your hands. While you hold a tape the address says which, so
+  // the address bar is always a link to what you're looking at.
+  const linkedId = params.get('tape');
+  let pendingTape = linkedId && plan.slots.some((s) => s.video.id === linkedId) ? linkedId : null;
+  if (pendingTape) ui.splashTape(plan.slots.find((s) => s.video.id === pendingTape).video);
+
+  function tapeInAddress(id) {
+    const url = new URL(location.href);
+    if ((url.searchParams.get('tape') ?? null) === id) return;
+    if (id) url.searchParams.set('tape', id);
+    else url.searchParams.delete('tape');
+    history.replaceState(history.state, '', url);
+  }
+
+  /** The link to share: the tape's preview page on the live site (title + thumbnail in chat apps). */
+  function tapeLink(video) {
+    const id = encodeURIComponent(video.id);
+    // (the dev server has no t/ pages: those are written by the build, scripts/tape-pages.mjs)
+    return new URL(import.meta.env.DEV ? `?tape=${id}` : `t/${id}/`, new URL('.', location.href)).href;
+  }
+
+  async function shareTape() {
+    if (mode !== 'inspect' || heldSlot < 0) return;
+    const video = plan.slots[heldSlot].video;
+    const url = tapeLink(video);
+    try {
+      if (isTouch && navigator.share) {
+        await navigator.share({ title: video.title, text: `Found this at ${catalog.store.name} Video`, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      ui.shareDone('Link copied ✓');
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // they closed the share sheet
+      ui.shareFallback(url); // (no clipboard access, e.g. an embedded browser): show it to copy by hand
+    }
+  }
+
   // ------------------------------------------------------------ input wiring
   ui.on('enter', () => {
+    if (pendingTape) {
+      // straight to the shared tape, in your hands (the mouse is captured when you put it back)
+      const id = pendingTape;
+      pendingTape = null;
+      setMode('walk');
+      goToVideo(id);
+      return;
+    }
     setMode('walk');
     controls.lock();
   });
+  ui.on('share', shareTape);
   ui.on('resume', () => {
     if (isTouch || controls.dragLook) setMode('walk');
     else controls.lock();

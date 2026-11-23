@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/tape-pages.mjs",
     "preview": "vite preview",
     "sync": "node scripts/sync-youtube.mjs",
     "lint": "eslint .",

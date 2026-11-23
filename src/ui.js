@@ -98,6 +98,37 @@ export class UI {
     this.splashStatus(done < total ? 'RESTOCKING SHELVES' : 'ALL TAPES SHELVED', `${String(done).padStart(pad, '0')}/${total}`);
   }
 
+  /** A shared link brought them here for a tape: say which, and that Enter goes to it. */
+  splashTape(video) {
+    const p = $('.splash-tape');
+    p.hidden = !video;
+    if (!video) return;
+    $('strong', p).textContent = video.title;
+    $('#btn-enter').textContent = 'Enter and find it ▶';
+  }
+
+  /** The held-tape panel's Copy link: show that it worked (or what to copy by hand). */
+  shareDone(text) {
+    const b = $('.ip-share');
+    b.textContent = text;
+    b.classList.add('done');
+    clearTimeout(this.shareTimer);
+    this.shareTimer = setTimeout(() => {
+      b.textContent = 'Copy link';
+      b.classList.remove('done');
+    }, 2200);
+  }
+
+  /** Couldn't reach the clipboard: put the link in the panel's note, selected. */
+  shareFallback(url) {
+    const n = $('.ip-note');
+    n.hidden = false;
+    n.innerHTML = `Copy this link: <input class="ip-link" readonly value="${escapeHtml(url)}">`;
+    const input = $('.ip-link', n);
+    input.focus();
+    input.select();
+  }
+
   splashReady() {
     const b = $('#btn-enter');
     b.disabled = false;
@@ -189,6 +220,9 @@ export class UI {
     const yt = $('.ip-yt');
     yt.hidden = !video.youtubeId;
     if (video.youtubeId) yt.href = `https://www.youtube.com/watch?v=${encodeURIComponent(video.youtubeId)}`;
+    clearTimeout(this.shareTimer);
+    $('.ip-share', p).textContent = 'Copy link';
+    $('.ip-share', p).classList.remove('done');
     const n = $('.ip-note');
     n.hidden = !note;
     n.textContent = note || '';

@@ -65,6 +65,7 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Turn the box over | `Space`, drag it, or **Flip box** | drag or tap it |
 | Take it with you | `G` or **Grab** | **Grab** |
 | Watch it on YouTube | **View on YouTube** | **View on YouTube** |
+| Share it | **Copy link** | **Copy link** (opens the share sheet) |
 | Put it back | `Esc` | **Put back** |
 | Put the tape in the lounge's VCR | walk up to it holding a tape, click (or `E`) | walk up to it, tap |
 | Sit on a couch | aim at it and click (or `E`) | tap it |
@@ -78,6 +79,8 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | PS1 Mode on / off | `P`, or **PS1 mode** | **PS1** |
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
+
+**Tape links.** While you hold a tape, the address bar points at it (`?tape=<id>`), and **Copy link** gives a link to it (`…/t/<id>/`). Opening either one puts the visitor in front of that tape with it in their hands. The build writes the `t/` pages, one per tape (`scripts/tape-pages.mjs`), so chat apps and social sites show the tape's title and thumbnail when the link is pasted.
 
 ### PS1 Mode
 
