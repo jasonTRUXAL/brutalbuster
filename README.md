@@ -80,8 +80,11 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
 | Stand back up | `Esc`, **Stand up**, or start walking | **Stand up** |
 | PS1 Mode on / off | `P`, or **PS1 mode** | **PS1** |
+| Sound on / off | `N`, or **Sound** | **Sound** |
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
+
+**Sound.** Everything you hear is made in code as you play (`src/audio.js`, Web Audio, no sound files): the fluorescent hum and the air conditioning, the street by the windows (with the odd passing car), in-store music through the ceiling speakers (quieter in the side rooms, and ducked while a tape plays in the lounge), footsteps on the carpet and the tiles by the door, and the door chime, tape clicks, the VCR loading a tape, the drop box, the receipt printer, tokens and prizes. It starts when you click Enter, goes quiet while the tab is hidden, and **Sound** (or `N`) turns it off, remembered on that browser.
 
 **The store front.** The store is open 24 hours: an LED **OPEN 24 HOURS** sign hangs in the window facing the street, so from inside it reads back to front. The sky outside follows your own clock (dawn, day, dusk and night). Tapes go back on their shelves on their own, but you can also drop one through the **RETURNS** box by the door (a token, five times a day). Take a tape to the register and you can rent it: the register prints a rental slip and the tape stays in your hands. Walk up to the counter empty-handed and the clerk asks for your membership card. Decorations go up by the calendar: Halloween in October, the winter holidays from 1 December to 6 January, and Valentine's from 1 to 14 February. `?time=day|dusk|dawn|night` and `?season=halloween|winter|valentine|none` in the address preview them.
 

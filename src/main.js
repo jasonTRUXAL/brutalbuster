@@ -2,7 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { loadFonts } from './fonts.js';
 import { loadCatalog, fetchCatalog, addArea, shelfName, AREAS } from './catalog.js';
-import { planStore } from './layout.js';
+import { planStore, roomAt } from './layout.js';
 import { CoverAtlas } from './atlas.js';
 import { TapeShelves, BoxSetShelves } from './tapes.js';
 import { buildStore } from './store.js';
@@ -19,6 +19,7 @@ import { mapLimit } from './util.js';
 import { UI } from './ui.js';
 import { Membership, REWARDS } from './membership.js';
 import { phaseFor, seasonFor, PHASES, SEASON_IDS } from './calendar.js';
+import { StoreAudio } from './audio.js';
 
 const ui = new UI();
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -146,7 +147,16 @@ async function main() {
     // (storage blocked: the card lasts this visit)
   }
   const member = new Membership({ storage }).load();
-  member.onEarn = (event) => ui.toast(event);
+  // the store's sound, made in code (audio.js): it starts with the click on Enter
+  const audio = new StoreAudio();
+  ui.setSound(audio.enabled);
+  const sound = (name) => audio.play(name);
+  window.addEventListener('bb:sound', (e) => sound(e.detail?.name));
+  window.addEventListener('bb:prize', () => sound('prize'));
+  member.onEarn = (event) => {
+    ui.toast(event);
+    if (event.amount > 0) setTimeout(() => sound('token'), 350);
+  };
   member.onChange = (s) => ui.setTokens(s.tokens);
   ui.setTokens(member.state.tokens);
 
@@ -242,6 +252,7 @@ async function main() {
     setMode('inspect');
     tapes.hide(slot);
     inspector.open(video, slot, tapes.worldMatrix(slot), camera);
+    sound('pickup');
     controls.unlock();
     showHeld(slot);
   }
@@ -279,6 +290,7 @@ async function main() {
     tapes.show(heldSlot); // (back in the box)
     tapes.hide(next);
     heldSlot = next;
+    sound('swap');
     showHeld(next, true);
   }
   inspector.onClosed = (slot) => tapes.show(slot);
@@ -295,6 +307,7 @@ async function main() {
   function putBack(viaGesture) {
     if (mode !== 'inspect') return;
     inspector.close();
+    sound('putback');
     heldSlot = -1;
     resumeWalking(viaGesture);
   }
@@ -318,6 +331,7 @@ async function main() {
     inspector.release();
     theater.insert(inVcr.video);
     member.rent(inVcr.video);
+    sound('vcr');
     setTarget(null);
     holdTheMouse();
   }
@@ -447,6 +461,8 @@ async function main() {
 
   // ------------------------------------------------------------ input wiring
   ui.on('enter', () => {
+    audio.start(); // (the click lets the page make sound)
+    sound('chime');
     member.visit(); // (the day's visit and streak; nothing if you've been in today)
     if (pendingTape) {
       // straight to the shared tape, in your hands (the mouse is captured when you put it back)
@@ -478,6 +494,11 @@ async function main() {
   ui.on('stand', () => exitPlay(true));
   ui.on('standUp', () => standUp(true));
   ui.on('ps1', () => setPS1(!ps1.enabled));
+  const toggleSound = () => {
+    audio.setEnabled(!audio.enabled);
+    ui.setSound(audio.enabled);
+  };
+  ui.on('sound', toggleSound);
   ui.buildDirectory(catalog, atlas, (id) => goToVideo(id));
 
   controls.onLockChange = (locked, failed) => {
@@ -549,6 +570,10 @@ async function main() {
     }
     if (e.code === 'KeyP' && mode !== 'splash' && !e.repeat) {
       setPS1(!ps1.enabled);
+      return;
+    }
+    if (e.code === 'KeyN' && mode !== 'splash' && !e.repeat) {
+      toggleSound();
       return;
     }
     if (mode === 'play') {
@@ -751,6 +776,17 @@ async function main() {
       }
     }
     updateRemote();
+    // the store's sound: which room, the lounge's tape, the shop window, footsteps
+    const here = camera.position;
+    const room = roomAt(plan, here);
+    audio.update(dt, {
+      room,
+      mode,
+      tape: theater.level || 0,
+      front: room === 'main' ? Math.max(0, 1 - (plan.D / 2 - here.z) / 4) : 0,
+      speed: mode === 'walk' ? Math.min(1, Math.hypot(controls.vel.x, controls.vel.z) / DIM.WALK) : 0,
+      surface: room === 'main' && here.z > plan.D / 2 - 3.4 ? 'tile' : 'carpet',
+    });
     // lounge watching earns tokens (only while the picture's up and not paused)
     if (theater.stage === 'playing' && !theater.paused) member.watch(dt);
     // a visit that runs past midnight counts for the new day too
@@ -794,7 +830,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, member, openCard, returnTape, checkOut, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, member, openCard, returnTape, checkOut, audio, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
       get target() { return target; },

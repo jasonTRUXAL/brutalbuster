@@ -399,6 +399,18 @@ test('return a tape through the drop box; check one out at the counter', async (
   await expect(page.locator('#receipt')).toBeHidden();
 });
 
+test('sound: starts with the click on Enter; N turns it off and on', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'the chip is the same on a phone');
+  const started = await page.evaluate(() => window.__bb.audio.started);
+  test.skip(!started, 'no Web Audio in this browser');
+  const before = await page.evaluate(() => window.__bb.audio.enabled);
+  await page.keyboard.press('n');
+  await expect(page.locator('#btn-sound')).toHaveAttribute('aria-pressed', String(!before));
+  await page.keyboard.press('n');
+  await expect(page.locator('#btn-sound')).toHaveAttribute('aria-pressed', String(before));
+  await page.evaluate(() => ['chime', 'pickup', 'vcr', 'dropbox', 'register', 'token', 'prize'].forEach((n) => window.__bb.audio.play(n)));
+});
+
 test('find a tape in the directory and walk to it', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'covered by the touch test');
   const title = await page.evaluate(() => window.__bb.catalog.videos[5 % window.__bb.catalog.videos.length].title);

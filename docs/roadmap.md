@@ -46,6 +46,10 @@ The user's picks from the ideas list:
 - **Time of day:** the sky, the lot and the street lamps follow the visitor's clock (dawn 5–7, day 7–17, dusk 17–20, night).
 - **Seasons:** Halloween (Oct), winter holidays (1 Dec–6 Jan), Valentine's (1–14 Feb). The floor by the front is full (Lucky Hit, drop box, gates, gacha row), so the props go on the counter, the drop box and the window.
 
+## Sound (built 2026-11-23, branch `feature/ambient-sound`)
+
+Everything is made in code with Web Audio (`src/audio.js`), as the user asked ("no audio files for now"): room tone (hum, air conditioning, street and passing cars near the windows), procedural in-store music (a mellow D-major chord loop with bass, drums and a pentatonic melody, through a ceiling-speaker filter and a small room reverb; quieter in the side rooms and ducked under a lounge tape), footsteps (carpet or tile), and one-offs: door chime, tape clicks, VCR load, drop box, receipt printer, tokens, prizes. Sound toggle on the HUD (N), remembered.
+
 ## Prize corner (built)
 
 - **Gacha machines (4):** playable. Crank, capsule drop, open, and a pile that empties and refills.

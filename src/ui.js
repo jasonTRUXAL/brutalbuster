@@ -35,6 +35,10 @@ export class UI {
     this.card.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="close"]') || e.target === this.card || e.target.classList.contains('card-wrap')) this.handlers.closeCard?.();
     });
+    $('#btn-sound').addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      this.handlers.sound?.();
+    });
     $('#btn-ps1').addEventListener('click', (e) => {
       e.currentTarget.blur(); // so Space / Enter don't press it again later
       this.handlers.ps1?.();
@@ -180,6 +184,11 @@ export class UI {
   /** The touchscreen's Crouch toggle. */
   setCrouch(on) {
     $('#btn-crouch').setAttribute('aria-pressed', String(on));
+  }
+
+  /** Show whether the store's sound is on (the HUD toggle). */
+  setSound(on) {
+    $('#btn-sound').setAttribute('aria-pressed', String(on));
   }
 
   /** Show whether PS1 Mode is on (the HUD toggle). */

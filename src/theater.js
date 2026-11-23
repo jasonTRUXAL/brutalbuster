@@ -301,7 +301,10 @@ export class Theater {
       this._post({ event: 'listening' });
       this.listenIn = ++this.asks < 20 ? 0.5 : Infinity;
     }
-    if (!this.video) return;
+    if (!this.video) {
+      this.level = 0;
+      return;
+    }
     if (this.stage === 'intro' && this.projection.introDone) this._start();
     else if (this.stage === 'starting' && (this.playing || (this.waited += dt) >= START_WAIT)) {
       // it's playing: blip into the picture
@@ -316,6 +319,7 @@ export class Theater {
     const p = camera.position;
     const d = Math.hypot(p.x - s.x, p.z - s.z);
     const level = THREE.MathUtils.clamp(1 - (d - 3.5) / 12, 0, 1) * (roomAt(this.plan, p) === 'lounge' ? 1 : 0.5);
+    this.level = this.stage === 'playing' && !this.paused ? level : 0; // (the store's music ducks under it)
     const volume = Math.round(level * 20) * 5;
     if (volume !== this.volume && this.heard) {
       this._post({ event: 'command', func: 'setVolume', args: [volume] });
