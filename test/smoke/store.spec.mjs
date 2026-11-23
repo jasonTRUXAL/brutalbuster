@@ -346,6 +346,19 @@ test('Streams: take a tape out of a box set and swap it for the next', async ({ 
   await expect(page.locator('.ip-title')).toHaveText(first);
 });
 
+test('the membership card: tokens for the visit, opened with M, closed with Esc', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'the token chip is the same on a phone');
+  const tokens = await page.evaluate(() => window.__bb.member.state.tokens);
+  expect(tokens).toBeGreaterThan(0); // (entering paid the welcome and the day's visit)
+  await expect(page.locator('.token-count')).toHaveText(String(tokens));
+  await page.keyboard.press('m');
+  await expect(page.locator('#card')).toBeVisible();
+  await expect(page.locator('.mc-token-count')).toHaveText(String(tokens));
+  await expect(page.locator('.cp-stamps i.on')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#card')).toBeHidden();
+});
+
 test('find a tape in the directory and walk to it', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'covered by the touch test');
   const title = await page.evaluate(() => window.__bb.catalog.videos[5 % window.__bb.catalog.videos.length].title);

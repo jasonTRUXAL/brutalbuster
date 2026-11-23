@@ -18,6 +18,7 @@
         <div class="hud-chips">
           <button id="btn-ps1" class="chip" type="button" aria-pressed="false" title="Draw the store like a 1995 console game">PS1<span class="chip-more"> mode</span> <kbd>P</kbd></button>
           <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
+          <button id="btn-card" class="chip chip-tokens" type="button" title="Your membership card"><span class="token-coin" aria-hidden="true"></span><span class="token-count">0</span><span class="chip-more"> tokens</span> <kbd>M</kbd></button>
         </div>
       </div>
       <div id="crosshair"></div>
@@ -33,6 +34,7 @@
         <span><kbd>C</kbd> crouch</span>
         <span><kbd>Click</kbd> pick up</span>
         <span><kbd>F</kbd> find</span>
+        <span><kbd>M</kbd> card</span>
         <span><kbd>P</kbd> PS1 mode</span>
         <span><kbd>Esc</kbd> free the mouse</span>
       </div>
@@ -134,6 +136,47 @@
         <div class="dir-grid"></div>
       </div>
     </section>
+
+    <!-- Membership card -->
+    <section id="card" class="overlay" hidden>
+      <div class="card-wrap">
+        <div class="member-card">
+          <div class="mc-top">
+            <span class="mc-brand"><span class="brand-name">BRUTALBUSTER</span> <span class="brand-sub">VIDEO</span></span>
+            <span class="mc-kind">MEMBER</span>
+          </div>
+          <div class="mc-mid">
+            <div class="mc-name">Valued Member</div>
+            <div class="mc-no">No. <span class="mc-number"></span></div>
+            <div class="mc-since">Member since <span class="mc-since-date"></span></div>
+          </div>
+          <div class="mc-bottom">
+            <div class="mc-barcode" aria-hidden="true"></div>
+            <div class="mc-tokens"><span class="token-coin" aria-hidden="true"></span><b class="mc-token-count">0</b> tokens</div>
+          </div>
+        </div>
+        <div class="card-panel">
+          <div class="cp-stats">
+            <div><b class="cp-streak">0</b><span>day streak</span></div>
+            <div><b class="cp-best">0</b><span>best streak</span></div>
+            <div><b class="cp-visits">0</b><span>visits</span></div>
+            <div><b class="cp-hours">0</b><span>in the lounge</span></div>
+          </div>
+          <div class="cp-stamps" aria-label="The days you came in"></div>
+          <details class="cp-earn">
+            <summary>How to earn tokens</summary>
+            <ul class="cp-earn-list"></ul>
+          </details>
+          <h3>Rental history</h3>
+          <ol class="cp-history"></ol>
+          <p class="cp-note">Your card lives in this browser. Clearing your browsing data resets it.</p>
+          <button class="btn ghost" data-act="close" type="button">Close <kbd>Esc</kbd></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- "+15 tokens" pop-ups -->
+    <div id="toasts" aria-live="polite"></div>
 
     <div id="fatal" class="overlay" hidden></div>
 

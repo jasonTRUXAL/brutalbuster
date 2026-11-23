@@ -72,6 +72,7 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | The VCR's remote (on the couch, or at the VCR, once a tape's playing) | `R` back 5 seconds (`←` too on the couch), `Space` pause / play, `T` subtitles, or its buttons | its buttons |
 | Crouch | hold `C` | **Crouch** (tap again to stand) |
 | Find a title | `F` | **Find a tape** |
+| Your membership card | `M`, or the token count (top right) | the token count |
 | Play a prize-corner machine | aim at it and click (or `E`) | tap it |
 | Turn the gacha crank | `Space`, or **Turn the crank** | **Turn the crank** |
 | Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
@@ -79,6 +80,14 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | PS1 Mode on / off | `P`, or **PS1 mode** | **PS1** |
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
+
+**Membership card and tokens.** The token count in the top right (or `M`) opens your membership card: your member number, a stamp for each day you came in, your streak, your time in the lounge and your rental history (✓ for tapes watched to the end). You earn tokens for:
+
+- coming in each day: 10, plus 5 more for each day in a row, up to +25 (so 35 a day from day 6). Miss a day and the streak starts again. One-off bonuses at 7, 30, 100 and 365 days in a row;
+- watching in the lounge: 1 every 5 minutes a tape plays, up to 12 a day;
+- watching a tape to the end: 5, three times a day.
+
+The card is kept in that browser (`localStorage`), so clearing browsing data resets it. The rules are in `src/membership.js` (`REWARDS`).
 
 **Tape links.** While you hold a tape, the address bar points at it (`?tape=<id>`), and **Copy link** gives a link to it (`…/t/<id>/`). Opening either one puts the visitor in front of that tape with it in their hands. The build writes the `t/` pages, one per tape (`scripts/tape-pages.mjs`), so chat apps and social sites show the tape's title and thumbnail when the link is pasted.
 

@@ -40,6 +40,7 @@ The work is split into passes, each finished and approved before the next:
 
 - **Gacha machines (4):** playable. Crank, capsule drop, open, and a pile that empties and refills.
 - **Lucky Hit:** playable. It's the Shenmue street drop board: aim, drop one slow ball, and every slot wins. The nails change daily (board of the day, checked by simulation). The narrow gold jackpot slot (about 4% of drops) is reserved for rare prizes. It replaced the classic pachinko machine on 2026-10-28.
+- **Tokens and the membership card** (built 2026-11-23, branch `feature/membership`, the user's ask): tokens for the day's visit with a streak bonus that tops out (10 a day, +5 per day in a row up to +25; bonuses at 7/30/100/365 days), for lounge watching (1 per 5 minutes, 12 a day max) and for finishing a tape (5, three a day). A membership card (M, or the token chip) shows the streak, stamps, lounge time and rental history. Kept in the browser for now; sign-in accounts (Twitch, follow age) are a separate discussion because they need a server. Not decided yet: what tokens buy (the prize corner is still free to play).
 - **Next: the reward system.** The rule is "you always win something; it's just what you win". Every capsule and jackpot fires a `bb:prize` event carrying `{ kind, machine, … }`. Ideas so far: each gacha machine's theme maps to a part of the store (Tape Pals → Mystery Tapes, Snack Pals → brutalfoods, Game Pals → the game reviews, TV Pals → Televoid!), and a capsule could contain a tape from that section.
 
 ## PS1 Mode (built)

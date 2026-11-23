@@ -14,6 +14,8 @@ export class UI {
     this.seat = $('#seat');
     this.remote = $('#remote');
     this.directory = $('#directory');
+    this.card = $('#card');
+    this.toasts = $('#toasts');
     this.play = $('#play');
     this.tooltip = $('#tooltip');
     this.crosshair = $('#crosshair');
@@ -22,6 +24,13 @@ export class UI {
 
     $('#btn-enter').addEventListener('click', () => this.handlers.enter?.());
     $('#btn-find').addEventListener('click', () => this.handlers.find?.());
+    $('#btn-card').addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      this.handlers.card?.();
+    });
+    this.card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act="close"]') || e.target === this.card || e.target.classList.contains('card-wrap')) this.handlers.closeCard?.();
+    });
     $('#btn-ps1').addEventListener('click', (e) => {
       e.currentTarget.blur(); // so Space / Enter don't press it again later
       this.handlers.ps1?.();
@@ -146,7 +155,8 @@ export class UI {
     this.inspect.hidden = mode !== 'inspect';
     this.seat.hidden = mode !== 'sit';
     this.directory.hidden = mode !== 'directory';
-    this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory');
+    this.card.hidden = mode !== 'card';
+    this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory' || mode === 'card');
     if (mode !== 'walk') this.hover(null);
   }
 
@@ -321,12 +331,78 @@ export class UI {
     setTimeout(() => input.focus({ preventScroll: true }), 30);
   }
 
+  // ------------------------------------------------------------ membership
+
+  /** The token count on the HUD chip (with a little bump when it goes up). */
+  setTokens(n) {
+    const el = $('.token-count');
+    const before = Number(el.textContent) || 0;
+    el.textContent = String(n);
+    if (n > before) {
+      const chip = $('#btn-card');
+      chip.classList.remove('bump');
+      void chip.offsetWidth;
+      chip.classList.add('bump');
+    }
+  }
+
+  /** A "+15 TOKENS · Day 2 in a row" pop-up. */
+  toast(event) {
+    if (!event?.amount) return;
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = `<b>${event.amount > 0 ? '+' : '−'}${Math.abs(event.amount)} TOKEN${Math.abs(event.amount) === 1 ? '' : 'S'}</b>${escapeHtml(event.note || '')}`;
+    this.toasts.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
+  /** Fill in the membership card from the member's state (see membership.js). */
+  showCard(s, { rewards, now = Date.now() }) {
+    const c = this.card;
+    $('.mc-number', c).textContent = s.memberNo.replace(/(\d{4})(\d{4})/, '$1 $2');
+    $('.mc-since-date', c).textContent = new Date(s.since).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    $('.mc-token-count', c).textContent = String(s.tokens);
+    $('.cp-streak', c).textContent = String(s.streak);
+    $('.cp-best', c).textContent = String(s.best);
+    $('.cp-visits', c).textContent = String(s.visits);
+    $('.cp-hours', c).textContent = hoursMinutes(s.watchSec);
+    // the last two weeks, a stamp for each day you came in (today last)
+    const stamps = $('.cp-stamps', c);
+    stamps.innerHTML = '';
+    const days = new Set(s.stamps);
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now - i * 86400000);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const dot = document.createElement('i');
+      dot.className = days.has(key) ? 'on' : '';
+      dot.title = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      stamps.appendChild(dot);
+    }
+    const r = rewards;
+    $('.cp-earn-list', c).innerHTML = [
+      `Come in each day: <b>${r.VISIT}</b> tokens, plus <b>${r.STREAK_STEP}</b> more for each day in a row (up to <b>+${r.STREAK_CAP}</b>)`,
+      `Streak bonuses at ${Object.entries(r.MILESTONES).map(([d, n]) => `${d} days (<b>${n}</b>)`).join(', ')}`,
+      `Watch tapes in the lounge: <b>1</b> token every ${r.WATCH_MINUTES} minutes, up to <b>${r.WATCH_DAILY_CAP}</b> a day`,
+      `Watch a tape to the end: <b>${r.FINISH}</b> tokens (${r.FINISH_DAILY_CAP} times a day)`,
+      `Return a tape through the drop box: <b>${r.RETURN}</b> (${r.RETURN_DAILY_CAP} a day)`,
+    ].map((li) => `<li>${li}</li>`).join('');
+    const list = $('.cp-history', c);
+    list.innerHTML = s.history.length
+      ? s.history.map((h) => `<li><span class="t">${escapeHtml(h.title)}</span><span class="m${h.finished ? ' done' : ''}">${h.finished ? '✓ ' : ''}${hoursMinutes(h.watchSec)}</span></li>`).join('')
+      : '<li class="empty">Nothing yet. Grab a tape and take it to the VCR in the lounge.</li>';
+  }
+
   fatal(title, detail) {
     const el = $('#fatal');
     el.innerHTML = `<div class="box"><h2>${escapeHtml(title)}</h2><p>${escapeHtml(detail)}</p></div>`;
     el.hidden = false;
     this.splash.hidden = true;
   }
+}
+
+function hoursMinutes(sec) {
+  const m = Math.floor(sec / 60);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
 }
 
 function titleCase(s) {

@@ -17,6 +17,7 @@ import { setMaxAnisotropy } from './textures.js';
 import { DIM } from './config.js';
 import { mapLimit } from './util.js';
 import { UI } from './ui.js';
+import { Membership, REWARDS } from './membership.js';
 
 const ui = new UI();
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -129,6 +130,19 @@ async function main() {
     }
   }
   setPS1(ps1Param !== null ? ps1Param !== '0' : ps1Saved, false);
+
+  // The membership card: tokens for daily visits (with a streak) and lounge watching.
+  // Kept in this browser (membership.js).
+  let storage = null;
+  try {
+    storage = window.localStorage;
+  } catch {
+    // (storage blocked: the card lasts this visit)
+  }
+  const member = new Membership({ storage }).load();
+  member.onEarn = (event) => ui.toast(event);
+  member.onChange = (s) => ui.setTokens(s.tokens);
+  ui.setTokens(member.state.tokens);
 
   // ------------------------------------------------------------ state machine
   let mode = 'splash';
@@ -294,6 +308,7 @@ async function main() {
     carried = null;
     inspector.release();
     theater.insert(inVcr.video);
+    member.rent(inVcr.video);
     setTarget(null);
     holdTheMouse();
   }
@@ -308,9 +323,10 @@ async function main() {
   };
   theater.onPicture = holdTheMouse;
   // at the end of the tape, it's put back on its shelf
-  theater.onEnded = () => {
+  theater.onEnded = (video) => {
     if (inVcr) tapes.show(inVcr.slot);
     inVcr = null;
+    if (video) member.finish(video);
   };
 
   function openDirectory() {
@@ -322,6 +338,14 @@ async function main() {
 
   function closeDirectory() {
     setMode(isTouch || controls.dragLook ? 'walk' : 'paused');
+  }
+
+  /** The membership card (the token chip, or M). */
+  function openCard() {
+    if (mode === 'inspect') putBack(false);
+    setMode('card');
+    controls.unlock();
+    ui.showCard(member.state, { rewards: REWARDS });
   }
 
   /** Walk to a tape and pick it up (a copy that's on a shelf, not one you've taken). */
@@ -387,6 +411,7 @@ async function main() {
 
   // ------------------------------------------------------------ input wiring
   ui.on('enter', () => {
+    member.visit(); // (the day's visit and streak; nothing if you've been in today)
     if (pendingTape) {
       // straight to the shared tape, in your hands (the mouse is captured when you put it back)
       const id = pendingTape;
@@ -407,6 +432,8 @@ async function main() {
   });
   ui.on('find', openDirectory);
   ui.on('closeDirectory', closeDirectory);
+  ui.on('card', () => (mode === 'card' ? closeDirectory() : openCard()));
+  ui.on('closeCard', closeDirectory);
   ui.on('back', () => putBack(true));
   ui.on('flip', () => inspector.flip());
   ui.on('drag', (dx, dy) => inspector.drag(dx, dy));
@@ -475,7 +502,7 @@ async function main() {
     }
     if (e.key === 'Escape') {
       if (mode === 'inspect') putBack(false);
-      else if (mode === 'directory') closeDirectory();
+      else if (mode === 'directory' || mode === 'card') closeDirectory();
       else if (mode === 'play') exitPlay(false);
       else if (mode === 'sit') standUp(false);
       return;
@@ -502,7 +529,10 @@ async function main() {
       return;
     }
     if (mode === 'walk' && e.code === 'KeyE') activateHovered();
-    else if ((mode === 'walk' || mode === 'paused') && (e.code === 'KeyF' || e.key === '/')) {
+    else if ((mode === 'walk' || mode === 'paused' || mode === 'card') && e.code === 'KeyM' && !e.repeat) {
+      if (mode === 'card') closeDirectory();
+      else openCard();
+    } else if ((mode === 'walk' || mode === 'paused') && (e.code === 'KeyF' || e.key === '/')) {
       e.preventDefault();
       openDirectory();
     } else if (mode === 'inspect') {
@@ -641,6 +671,7 @@ async function main() {
   const timer = new THREE.Timer();
   timer.connect(document); // ignores time spent in a background tab
   let flushTimer = 0;
+  let dayCheck = 0;
   let time = 0;
   const spawn = plan.spawn;
   function tick(dt) {
@@ -660,6 +691,13 @@ async function main() {
       else setTarget(carried && theater.nearVcr(camera.position) ? aim(center) : null);
     }
     updateRemote();
+    // lounge watching earns tokens (only while the picture's up and not paused)
+    if (theater.stage === 'playing' && !theater.paused) member.watch(dt);
+    // a visit that runs past midnight counts for the new day too
+    if (mode !== 'splash' && (dayCheck += dt) > 60) {
+      dayCheck = 0;
+      member.visit();
+    }
     store.update(dt, time);
     inspector.update(dt, mode === 'walk' ? Math.min(1, Math.hypot(controls.vel.x, controls.vel.z) / DIM.WALK) : 0);
     flushTimer += dt;
@@ -695,7 +733,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, member, openCard, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
       get target() { return target; },
