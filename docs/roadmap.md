@@ -36,6 +36,16 @@ The work is split into passes, each finished and approved before the next:
    - **The remote** (user's follow-up): while a tape plays, on the couch or standing at the VCR, a small panel offers back 5 seconds (YouTube's ← key), pause / play and subtitles. Keys R (← on the couch too), Space and T. Subtitles are off unless you turn them on, and the choice is remembered.
    - **Crouching** (user's follow-up): hold C on a computer, or tap the **Crouch** toggle on a phone. Your eyes drop to about a metre and you walk at half speed.
 
+## Store life (built 2026-11-23, branch `feature/store-life`)
+
+The user's picks from the ideas list:
+
+- **Drop box:** carry a tape to the RETURNS box by the door and drop it in (1 token, five a day). Tapes still go back on their own.
+- **Checkout counter:** take a tape to the register to rent it: a printed rental slip (due back in 2 nights, no late fees), the register's screen shows it, and it goes on the card's rental history. Empty-handed, the counter opens your membership card.
+- **OPEN 24 HOURS:** an LED sign facing the street, so it's backwards from inside (the user's idea). It replaced the OPEN neon. No closing time anywhere.
+- **Time of day:** the sky, the lot and the street lamps follow the visitor's clock (dawn 5–7, day 7–17, dusk 17–20, night).
+- **Seasons:** Halloween (Oct), winter holidays (1 Dec–6 Jan), Valentine's (1–14 Feb). The floor by the front is full (Lucky Hit, drop box, gates, gacha row), so the props go on the counter, the drop box and the window.
+
 ## Prize corner (built)
 
 - **Gacha machines (4):** playable. Crank, capsule drop, open, and a pile that empties and refills.

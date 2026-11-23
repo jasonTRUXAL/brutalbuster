@@ -15,6 +15,7 @@ export class UI {
     this.remote = $('#remote');
     this.directory = $('#directory');
     this.card = $('#card');
+    this.receipt = $('#receipt');
     this.toasts = $('#toasts');
     this.play = $('#play');
     this.tooltip = $('#tooltip');
@@ -27,6 +28,9 @@ export class UI {
     $('#btn-card').addEventListener('click', (e) => {
       e.currentTarget.blur();
       this.handlers.card?.();
+    });
+    this.receipt.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act="close"]') || e.target === this.receipt) this.handlers.closeReceipt?.();
     });
     this.card.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="close"]') || e.target === this.card || e.target.classList.contains('card-wrap')) this.handlers.closeCard?.();
@@ -156,7 +160,8 @@ export class UI {
     this.seat.hidden = mode !== 'sit';
     this.directory.hidden = mode !== 'directory';
     this.card.hidden = mode !== 'card';
-    this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory' || mode === 'card');
+    this.receipt.hidden = mode !== 'receipt';
+    this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory' || mode === 'card' || mode === 'receipt');
     if (mode !== 'walk') this.hover(null);
   }
 
@@ -390,6 +395,30 @@ export class UI {
     list.innerHTML = s.history.length
       ? s.history.map((h) => `<li><span class="t">${escapeHtml(h.title)}</span><span class="m${h.finished ? ' done' : ''}">${h.finished ? '✓ ' : ''}${hoursMinutes(h.watchSec)}</span></li>`).join('')
       : '<li class="empty">Nothing yet. Grab a tape and take it to the VCR in the lounge.</li>';
+  }
+
+  /** The checkout's rental slip, printed. */
+  showReceipt({ video, aisle, store, memberNo, now, due }) {
+    const date = (d) => d.toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', year: '2-digit' });
+    const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    $('.slip-body', this.receipt).innerHTML = `
+      <h3>${escapeHtml(store.name)} ${escapeHtml(store.subtitle || '')}</h3>
+      <div class="c">OPEN 24 HOURS</div>
+      <hr>
+      <div class="row"><span>${date(now)}</span><span>${time}</span></div>
+      <div class="row"><span>MEMBER</span><span>#${escapeHtml(memberNo.replace(/(\d{4})(\d{4})/, '$1 $2'))}</span></div>
+      <hr>
+      <div class="title">${escapeHtml(video.title)}</div>
+      <div>${escapeHtml(aisle || '')}${video.duration ? ` · ${escapeHtml(video.duration)}` : ''}</div>
+      <div class="row"><span>RENTAL</span><span>2 NIGHTS</span></div>
+      <hr>
+      <div class="row big"><span>DUE BACK</span><span>${date(due)}</span></div>
+      <div class="row"><span>LATE FEES</span><span>NONE</span></div>
+      <div class="row big"><span>TOTAL</span><span>$0.00</span></div>
+      <hr>
+      <div class="c">BE KIND, PLEASE REWIND</div>
+      <div class="barcode"></div>
+      <div class="c">THANK YOU!</div>`;
   }
 
   fatal(title, detail) {

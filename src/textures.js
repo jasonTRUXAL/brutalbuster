@@ -206,37 +206,111 @@ export function asphaltTexture() {
   return toTexture(c);
 }
 
-export function nightSkyTexture() {
+/** The sky behind the parking lot: 'night' (the default), 'dawn', 'day' or 'dusk'. */
+export function nightSkyTexture(phase = 'night') {
+  return toTexture(skyCanvas(phase));
+}
+
+const SKIES = {
+  night: { stops: ['#05040f', '#1b1240', '#4a1d52', '#ff7a59'], stars: 160, city: '#0a0818', lit: 0.4 },
+  dawn: { stops: ['#1d2b63', '#5b4f8f', '#e58a7d', '#ffd29a'], stars: 30, city: '#1a1830', lit: 0.18 },
+  day: { stops: ['#2f7fd6', '#63a9ea', '#a9d4f5', '#e2f2fb'], stars: 0, city: '#5f6f91', lit: 0, clouds: 9 },
+  dusk: { stops: ['#141238', '#4c2462', '#c2456a', '#ffa25c'], stars: 50, city: '#120d26', lit: 0.3, clouds: 4 },
+};
+
+export function skyCanvas(phase = 'night') {
+  const sky = SKIES[phase] || SKIES.night;
   const c = makeCanvas(1024, 512);
   const ctx = c.getContext('2d');
   const g = ctx.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0, '#05040f');
-  g.addColorStop(0.55, '#1b1240');
-  g.addColorStop(0.8, '#4a1d52');
-  g.addColorStop(1, '#ff7a59');
+  [0, 0.55, 0.8, 1].forEach((t, i) => g.addColorStop(t, sky.stops[i]));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 1024, 512);
   const r = rng(99);
-  for (let i = 0; i < 160; i++) {
+  for (let i = 0; i < sky.stars; i++) {
     ctx.fillStyle = `rgba(255,255,255,${r() * 0.8})`;
     ctx.fillRect(r() * 1024, r() * 300, 1.5, 1.5);
   }
-  // distant skyline
-  ctx.fillStyle = '#0a0818';
+  // soft clouds
+  const cr = rng(7);
+  for (let i = 0; i < (sky.clouds || 0); i++) {
+    const cx = cr() * 1024;
+    const cy = 60 + cr() * 220;
+    ctx.fillStyle = phase === 'day' ? 'rgba(255,255,255,.55)' : 'rgba(255,190,170,.25)';
+    for (let k = 0; k < 6; k++) {
+      ctx.beginPath();
+      ctx.ellipse(cx + (cr() - 0.5) * 120, cy + (cr() - 0.5) * 18, 40 + cr() * 50, 12 + cr() * 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // distant skyline (the same buildings whatever the time; windows lit after dark)
+  ctx.fillStyle = sky.city;
   let x = 0;
+  const rr = rng(99 * 7);
   while (x < 1024) {
-    const w = 30 + r() * 70;
-    const h = 40 + r() * 120;
+    const w = 30 + rr() * 70;
+    const h = 40 + rr() * 120;
     ctx.fillRect(x, 512 - h, w, h);
     for (let k = 0; k < (w * h) / 500; k++) {
-      if (r() < 0.4) {
-        ctx.fillStyle = r() < 0.7 ? 'rgba(255,214,120,.8)' : 'rgba(120,220,255,.7)';
-        ctx.fillRect(x + 4 + Math.floor(r() * (w - 8) / 7) * 7, 512 - h + 6 + Math.floor(r() * (h - 10) / 9) * 9, 3, 4);
-        ctx.fillStyle = '#0a0818';
+      if (rr() < sky.lit) {
+        ctx.fillStyle = rr() < 0.7 ? 'rgba(255,214,120,.8)' : 'rgba(120,220,255,.7)';
+        ctx.fillRect(x + 4 + Math.floor(rr() * (w - 8) / 7) * 7, 512 - h + 6 + Math.floor(rr() * (h - 10) / 9) * 9, 3, 4);
+        ctx.fillStyle = sky.city;
       }
     }
     x += w + 4;
   }
+  return c;
+}
+
+/**
+ * An LED "OPEN" sign: rows of lit dots on clear acrylic (transparent, for additive
+ * blending), with a chasing border. `frame` (0 or 1) moves the chase along a dot.
+ * `mirror` draws it back to front: it faces the street, so inside you see it reversed.
+ */
+export function ledSignTexture(lines, { color = '#ff2d4a', accent = '#2ee6ff', frame = 0, mirror = false, w = 768, h = 320 } = {}) {
+  // the lettering, drawn plainly and then sampled into dots
+  const mask = makeCanvas(w, h);
+  const m = mask.getContext('2d');
+  m.fillStyle = '#fff';
+  m.textAlign = 'center';
+  m.textBaseline = 'middle';
+  const sizes = [h * 0.46, h * 0.22];
+  const ys = [h * 0.4, h * 0.78];
+  lines.forEach((line, i) => {
+    m.font = `${sizes[i] || sizes[1]}px ${FONT.bungee}`;
+    m.fillText(line, w / 2, ys[i] || ys[1], w * 0.86);
+  });
+  const data = m.getImageData(0, 0, w, h).data;
+  const c = makeCanvas(w, h);
+  const ctx = c.getContext('2d');
+  if (mirror) {
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+  }
+  const pitch = 8;
+  const dot = (x, y, col, rad = pitch * 0.46) => {
+    ctx.fillStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = pitch * 0.9;
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  for (let y = pitch; y < h - pitch; y += pitch) {
+    for (let x = pitch; x < w - pitch; x += pitch) {
+      if (data[(Math.round(y) * w + Math.round(x)) * 4 + 3] > 100) dot(x, y, y < h * 0.6 ? color : accent);
+    }
+  }
+  // the border: every other dot lit, stepping along each frame
+  let k = 0;
+  const edge = (x, y) => {
+    if ((k++ + frame) % 2 === 0) dot(x, y, '#ffc61a', pitch * 0.3);
+  };
+  for (let x = 4; x < w - 4; x += pitch) edge(x, 4);
+  for (let y = 4; y < h - 4; y += pitch) edge(w - 4, y);
+  for (let x = w - 4; x > 4; x -= pitch) edge(x, h - 4);
+  for (let y = h - 4; y > 4; y -= pitch) edge(4, y);
   return toTexture(c);
 }
 

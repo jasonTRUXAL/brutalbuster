@@ -18,6 +18,7 @@ import { DIM } from './config.js';
 import { mapLimit } from './util.js';
 import { UI } from './ui.js';
 import { Membership, REWARDS } from './membership.js';
+import { phaseFor, seasonFor, PHASES, SEASON_IDS } from './calendar.js';
 
 const ui = new UI();
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -93,7 +94,12 @@ async function main() {
   const boxSets = new BoxSetShelves(plan.boxes, catalog);
   scene.add(boxSets.group);
   const slotIndex = new Map(plan.slots.map((s, i) => [s, i]));
-  const store = buildStore(scene, plan, catalog);
+  // The visitor's clock and calendar: the sky outside, and the season's decorations.
+  // `?time=day|dusk|dawn|night` and `?season=halloween|winter|valentine|none` override.
+  const timeParam = PHASES.includes(params.get('time')) ? params.get('time') : null;
+  const seasonParam = params.get('season');
+  const season = seasonParam === 'none' ? null : SEASON_IDS.includes(seasonParam) ? seasonParam : seasonFor(new Date());
+  const store = buildStore(scene, plan, catalog, { season, phase: timeParam || phaseFor(new Date()) });
   const controls = new PlayerControls(camera, canvas, { colliders: store.colliders, bounds: plan.bounds, spawn: plan.spawn });
   const culling = new RoomCulling(plan, store.annex.groups, [...tapes.covers, ...boxSets.meshes]);
   const inspector = new Inspector(catalog);
@@ -172,6 +178,9 @@ async function main() {
       return { aisle: 'Prize corner', title: g.kind === 'gacha' ? `${g.title} capsule machine` : `${g.title} drop board`, hint: `${press} to ${verb}` };
     }
     if (t.kind === 'seat') return { aisle: 'Lounge', title: 'Couch', hint: `${press} to sit down` };
+    if (t.kind === 'return') return { aisle: 'Returns', title: 'Drop box', hint: `${press} to return “${carried.video.title}”` };
+    if (t.kind === 'checkout') return { aisle: 'Checkout', title: 'Rent this tape', hint: `${press} to check out “${carried.video.title}”` };
+    if (t.kind === 'counter') return { aisle: 'Checkout', title: '“Got your membership card?”', hint: `${press} to show it` };
     if (t.kind === 'boxset') {
       const b = plan.boxes[t.box];
       return { aisle: `${b.boxSet.videos.length}-tape box set`, title: b.boxSet.title, hint: `${press} to take out tape 1` };
@@ -329,6 +338,33 @@ async function main() {
     if (video) member.finish(video);
   };
 
+  /** Drop the tape you're carrying through the returns slot: back on its shelf, +1 token. */
+  function returnTape() {
+    if (!carried) return;
+    const video = carried.video;
+    tapes.show(carried.slot);
+    carried = null;
+    inspector.release();
+    setTarget(null);
+    member.returned(video);
+    window.dispatchEvent(new CustomEvent('bb:sound', { detail: { name: 'dropbox' } }));
+  }
+
+  /** Rent the tape you're carrying at the register: a rental slip, and it's still yours. */
+  function checkOut() {
+    if (!carried) return;
+    const video = carried.video;
+    const now = new Date();
+    const due = new Date(now.getTime() + 2 * 86400000);
+    const no = member.state.memberNo;
+    member.checkout(video);
+    store.register.show([`MEMBER #${no.slice(-4)}`, video.title.toUpperCase(), `DUE ${due.getMonth() + 1}/${due.getDate()}`, 'TOTAL $ 0.00']);
+    window.dispatchEvent(new CustomEvent('bb:sound', { detail: { name: 'register' } }));
+    setMode('receipt');
+    controls.unlock();
+    ui.showReceipt({ video, aisle: shelfName(catalog.aisleById.get(video.aisle)), store: catalog.store, memberNo: no, now, due });
+  }
+
   function openDirectory() {
     if (mode === 'inspect') putBack(false);
     setMode('directory');
@@ -434,6 +470,7 @@ async function main() {
   ui.on('closeDirectory', closeDirectory);
   ui.on('card', () => (mode === 'card' ? closeDirectory() : openCard()));
   ui.on('closeCard', closeDirectory);
+  ui.on('closeReceipt', closeDirectory);
   ui.on('back', () => putBack(true));
   ui.on('flip', () => inspector.flip());
   ui.on('drag', (dx, dy) => inspector.drag(dx, dy));
@@ -459,6 +496,9 @@ async function main() {
 
   function activate(t) {
     if (t?.kind === 'vcr') insertTape();
+    else if (t?.kind === 'return') returnTape();
+    else if (t?.kind === 'checkout') checkOut();
+    else if (t?.kind === 'counter') openCard();
     else if (t?.kind === 'game') enterPlay(t.game);
     else if (t?.kind === 'seat') sitDown(t.seat);
     else if (t?.kind === 'tape') pickUp(t.slot);
@@ -502,7 +542,7 @@ async function main() {
     }
     if (e.key === 'Escape') {
       if (mode === 'inspect') putBack(false);
-      else if (mode === 'directory' || mode === 'card') closeDirectory();
+      else if (mode === 'directory' || mode === 'card' || mode === 'receipt') closeDirectory();
       else if (mode === 'play') exitPlay(false);
       else if (mode === 'sit') standUp(false);
       return;
@@ -597,6 +637,20 @@ async function main() {
     theater.resize(window.innerWidth, window.innerHeight);
   });
 
+  // ------------------------------------------------------------ the counter and the drop box
+  // Close to it and looking its way (no need to aim at a particular spot).
+  const PROMPTS = new Set(['vcr', 'return', 'checkout', 'counter']); // (what a touchscreen gets told about)
+  const registerSpot = { x: store.register.front - 0.1, z: store.register.z };
+  const look = new THREE.Vector3();
+  function near(spot, dist) {
+    const dx = spot.x - camera.position.x;
+    const dz = spot.z - camera.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > dist) return false;
+    camera.getWorldDirection(look);
+    return d < 0.35 || (dx * look.x + dz * look.z) / d > 0.55;
+  }
+
   // ------------------------------------------------------------ picking
   const raycaster = new THREE.Raycaster();
   raycaster.far = DIM.REACH;
@@ -631,6 +685,9 @@ async function main() {
   function aim(ndc) {
     camera.updateMatrixWorld(); // aim from where the camera is now, not where it was last drawn
     if (carried && theater.nearVcr(camera.position)) return { kind: 'vcr', key: `vcr:${carried.slot}` };
+    // the drop box by the door, and the register (with a tape: rent it; without: your card)
+    if (carried && near(store.dropBox, 1.3)) return { kind: 'return', key: `return:${carried.slot}` };
+    if (near(registerSpot, 1.5)) return carried ? { kind: 'checkout', key: `checkout:${carried.slot}` } : { kind: 'counter', key: 'counter' };
     const slot = raySlot(ndc);
     let best = slot >= 0 ? { kind: 'tape', key: `tape:${slot}`, slot, distance: slotDistance } : null;
     raycaster.setFromCamera(ndc, camera);
@@ -688,15 +745,19 @@ async function main() {
     if (mode === 'walk') {
       // (on a touchscreen there's no crosshair: only the VCR's prompt shows)
       if (!isTouch) setTarget(aim(controls.dragLook ? mouse : center));
-      else setTarget(carried && theater.nearVcr(camera.position) ? aim(center) : null);
+      else {
+        const t = aim(center);
+        setTarget(t && PROMPTS.has(t.kind) ? t : null);
+      }
     }
     updateRemote();
     // lounge watching earns tokens (only while the picture's up and not paused)
     if (theater.stage === 'playing' && !theater.paused) member.watch(dt);
     // a visit that runs past midnight counts for the new day too
-    if (mode !== 'splash' && (dayCheck += dt) > 60) {
+    if (mode !== 'splash' && (dayCheck += dt) > 30) {
       dayCheck = 0;
       member.visit();
+      if (!timeParam) store.setPhase(phaseFor(new Date())); // (the sky follows the clock)
     }
     store.update(dt, time);
     inspector.update(dt, mode === 'walk' ? Math.min(1, Math.hypot(controls.vel.x, controls.vel.z) / DIM.WALK) : 0);
@@ -733,7 +794,7 @@ async function main() {
   if (import.meta.env.DEV) {
     // test hooks: inspect state and step the simulation deterministically
     window.__bb = {
-      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, member, openCard, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
+      plan, catalog, controls, camera, scene, renderer, tapes, boxSets, openBox, swapTape, member, openCard, returnTape, checkOut, inspector, store, arcade, ps1, culling, theater, setPS1, goToVideo, pickUp, putBack, grab, insertTape, sitDown, standUp, setMode, raySlot, aim, enterPlay, exitPlay,
       get mode() { return mode; },
       get hovered() { return hovered; },
       get target() { return target; },

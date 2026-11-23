@@ -138,10 +138,28 @@ export class Membership {
     return events;
   }
 
-  /** A tape went into the lounge's VCR: it goes on the card's rental history. */
+  /**
+   * A tape went into the lounge's VCR: it goes on the card's rental history (the same
+   * entry as its checkout, if you rented it at the counter first).
+   */
   rent(video, now = Date.now()) {
     const s = this.state;
-    s.history.unshift({ id: video.id, title: video.title, area: video.area || null, at: new Date(now).toISOString(), watchSec: 0, finished: false });
+    const top = s.history[0];
+    if (top?.id === video.id && top.checkedOut && !top.watched) {
+      top.watched = true;
+      this.save();
+      return;
+    }
+    s.history.unshift({ id: video.id, title: video.title, area: video.area || null, at: new Date(now).toISOString(), watchSec: 0, finished: false, watched: true });
+    s.history.length = Math.min(s.history.length, HISTORY);
+    this.save();
+  }
+
+  /** Checked out at the counter: on the rental history, with a slip. */
+  checkout(video, now = Date.now()) {
+    const s = this.state;
+    s.checkouts = (s.checkouts || 0) + 1;
+    s.history.unshift({ id: video.id, title: video.title, area: video.area || null, at: new Date(now).toISOString(), watchSec: 0, finished: false, checkedOut: true, watched: false });
     s.history.length = Math.min(s.history.length, HISTORY);
     this.save();
   }

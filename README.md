@@ -67,6 +67,8 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Watch it on YouTube | **View on YouTube** | **View on YouTube** |
 | Share it | **Copy link** | **Copy link** (opens the share sheet) |
 | Put it back | `Esc` | **Put back** |
+| Return a tape you're carrying | walk up to the **RETURNS** box by the door, click (or `E`) | walk up to it, tap |
+| Rent it at the counter (a rental slip) | walk up to the register, click (or `E`) | walk up to it, tap |
 | Put the tape in the lounge's VCR | walk up to it holding a tape, click (or `E`) | walk up to it, tap |
 | Sit on a couch | aim at it and click (or `E`) | tap it |
 | The VCR's remote (on the couch, or at the VCR, once a tape's playing) | `R` back 5 seconds (`←` too on the couch), `Space` pause / play, `T` subtitles, or its buttons | its buttons |
@@ -81,11 +83,14 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
 
+**The store front.** The store is open 24 hours: an LED **OPEN 24 HOURS** sign hangs in the window facing the street, so from inside it reads back to front. The sky outside follows your own clock (dawn, day, dusk and night). Tapes go back on their shelves on their own, but you can also drop one through the **RETURNS** box by the door (a token, five times a day). Take a tape to the register and you can rent it: the register prints a rental slip and the tape stays in your hands. Walk up to the counter empty-handed and the clerk asks for your membership card. Decorations go up by the calendar: Halloween in October, the winter holidays from 1 December to 6 January, and Valentine's from 1 to 14 February. `?time=day|dusk|dawn|night` and `?season=halloween|winter|valentine|none` in the address preview them.
+
 **Membership card and tokens.** The token count in the top right (or `M`) opens your membership card: your member number, a stamp for each day you came in, your streak, your time in the lounge and your rental history (✓ for tapes watched to the end). You earn tokens for:
 
 - coming in each day: 10, plus 5 more for each day in a row, up to +25 (so 35 a day from day 6). Miss a day and the streak starts again. One-off bonuses at 7, 30, 100 and 365 days in a row;
 - watching in the lounge: 1 every 5 minutes a tape plays, up to 12 a day;
-- watching a tape to the end: 5, three times a day.
+- watching a tape to the end: 5, three times a day;
+- returning a tape through the drop box: 1, five times a day.
 
 The card is kept in that browser (`localStorage`), so clearing browsing data resets it. The rules are in `src/membership.js` (`REWARDS`).
 

@@ -359,6 +359,46 @@ test('the membership card: tokens for the visit, opened with M, closed with Esc'
   await expect(page.locator('#card')).toBeHidden();
 });
 
+test('return a tape through the drop box; check one out at the counter', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'same prompts on a phone');
+  const result = await page.evaluate(() => {
+    const bb = window.__bb;
+    const grabOne = (after) => {
+      const i = bb.plan.slots.findIndex((s, j) => j > after && s.section.kind === 'genre' && s.video.youtubeId);
+      bb.pickUp(i);
+      bb.advance(0.7);
+      bb.grab();
+      bb.setMode('walk'); // (a grab without a click leaves the mouse free: 'paused')
+      bb.advance(0.6);
+      return i;
+    };
+    const tokens = bb.member.state.tokens;
+    const first = grabOne(3);
+    const d = bb.store.dropBox;
+    bb.controls.teleport(d.x, d.z - 0.9, Math.PI, -0.3);
+    bb.advance(0.1);
+    const atBox = bb.target?.kind;
+    bb.returnTape();
+    bb.advance(0.5);
+    const returned = { carried: Boolean(bb.carried), onShelf: !bb.tapes.hiddenSet.has(first), tokens: bb.member.state.tokens - tokens };
+    grabOne(30);
+    const r = bb.store.register;
+    bb.controls.teleport(r.front - 0.9, r.z, -Math.PI / 2, -0.15);
+    bb.advance(0.1);
+    const atCounter = bb.target?.kind;
+    bb.checkOut();
+    return { atBox, returned, atCounter, mode: bb.mode, carrying: Boolean(bb.carried) };
+  });
+  expect(result.atBox).toBe('return');
+  expect(result.returned).toEqual({ carried: false, onShelf: true, tokens: 1 });
+  expect(result.atCounter).toBe('checkout');
+  expect(result.mode).toBe('receipt');
+  expect(result.carrying).toBe(true); // (you rented it: it's still yours)
+  await expect(page.locator('#receipt .slip-body')).toContainText('DUE BACK');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#receipt')).toBeHidden();
+});
+
 test('find a tape in the directory and walk to it', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'covered by the touch test');
   const title = await page.evaluate(() => window.__bb.catalog.videos[5 % window.__bb.catalog.videos.length].title);

@@ -670,3 +670,28 @@ body.drag-look #crosshair { display: none; }
   .member-card { transform: none; }
   .cp-stats b { font-size: 1.5rem; }
 }
+
+/* ------------------------------------------------------------ rental slip */
+
+#receipt { background: rgba(4, 3, 12, 0.6); z-index: 25; }
+.slip { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.slip-body {
+  width: min(330px, calc(100vw - 32px));
+  padding: 22px 20px 26px;
+  background: #fbf8ef;
+  color: #222;
+  font: 1.2rem/1.25 var(--mono);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  /* torn bottom edge */
+  -webkit-mask: linear-gradient(#000 0 0) top / 100% calc(100% - 10px) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 16px 10px repeat-x;
+  mask: linear-gradient(#000 0 0) top / 100% calc(100% - 10px) no-repeat, conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / 16px 10px repeat-x;
+  animation: slipPrint 0.9s steps(12) both;
+}
+@keyframes slipPrint { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+.slip-body h3 { margin: 0; text-align: center; font: 400 1.7rem/1 var(--display); letter-spacing: 0.08em; }
+.slip-body .c { text-align: center; }
+.slip-body hr { border: none; border-top: 2px dashed #999; margin: 10px 0; }
+.slip-body .row { display: flex; justify-content: space-between; gap: 10px; }
+.slip-body .title { margin: 6px 0; font-size: 1.35rem; text-transform: uppercase; }
+.slip-body .big { font-size: 1.5rem; }
+.slip-body .barcode { height: 40px; margin: 12px 10px 4px; background: repeating-linear-gradient(90deg, #111 0 2px, transparent 2px 4px, #111 4px 5px, transparent 5px 8px, #111 8px 11px, transparent 11px 12px); }

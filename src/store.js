@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { DIM, BRAND } from './config.js';
 import {
   carpetTexture, vctTexture, ceilingTexture, pegboardTexture, wallTexture, asphaltTexture, nightSkyTexture,
-  aisleSignTexture, neonTexture, panelTexture, toTexture,
+  aisleSignTexture, neonTexture, panelTexture, toTexture, ledSignTexture,
 } from './textures.js';
 import { coverCanvas, coverData } from './covers.js';
 import { FONT } from './fonts.js';
@@ -13,10 +13,15 @@ import { CrtScreen } from './crt.js';
 import { buildPrizeCorner } from './prizes.js';
 import { Batcher, tiledPlane, signPlane, batchWall, flatGeometry, buildGondolaShell, buildFace, addPoster } from './fixtures.js';
 import { buildAnnex } from './rooms.js';
+import { buildSeason } from './seasons.js';
 
 // ------------------------------------------------------------- store
 
-export function buildStore(scene, plan, catalog) {
+/**
+ * `season` ('halloween' | 'winter' | 'valentine' | null) puts up decorations; `phase`
+ * ('dawn' | 'day' | 'dusk' | 'night') is the sky outside, changed later with setPhase().
+ */
+export function buildStore(scene, plan, catalog, { season = null, phase = 'night' } = {}) {
   const { W, D, faces, gondolas, counter } = plan;
   const root = new THREE.Group();
   root.name = 'store';
@@ -83,7 +88,7 @@ export function buildStore(scene, plan, catalog) {
   // ---- walls, with the openings to the hallway and the Extras room
   for (const w of plan.walls) if (w.room === 'main') batchWall(B, mat.wall, w);
 
-  buildFrontWall(root, B, mat, plan);
+  const outside = buildFrontWall(root, B, mat, plan);
 
   // ---- shelving
   for (const g of gondolas) buildGondolaShell(B, mat, g);
@@ -106,8 +111,11 @@ export function buildStore(scene, plan, catalog) {
   root.add(signPlane(nr, nrH * nr.userData.aspect, nrH, nrX, 2.86, -D / 2 + 0.03, 0, { additive: true }));
 
   // ---- checkout counter, entrance, decor
-  buildCounter(root, B, mat, plan, catalog, animated);
-  buildEntrance(root, B, mat, plan, catalog, extraColliders, trackArt);
+  const register = buildCounter(root, B, mat, plan, catalog, animated);
+  const dropBox = buildEntrance(root, B, mat, plan, catalog, extraColliders, trackArt, animated);
+  const decorations = buildSeason({ root, plan, season, colliders: extraColliders, dropBox });
+  if (decorations) animated.push(decorations);
+  outside.setPhase(phase);
   const prizes = buildPrizeCorner({ root, B, mat, plan, colliders: extraColliders, animated });
   buildPosters(root, plan, catalog, trackArt);
   // (the annex's furniture footprints are in plan.colliders already: see planAnnex)
@@ -139,6 +147,14 @@ export function buildStore(scene, plan, catalog) {
     colliders: [...plan.colliders, ...extraColliders],
     prizes,
     annex,
+    register, // { x, z, front, show(lines) }: the checkout's register and its screen
+    dropBox, // { x, z }: the returns box by the door (its slot faces into the store)
+    season,
+    get phase() {
+      return outside.phase;
+    },
+    /** The sky outside the window: 'dawn' | 'day' | 'dusk' | 'night'. */
+    setPhase: (p) => outside.setPhase(p),
     update(dt, t) {
       for (const a of animated) a.update(dt, t);
     },
@@ -209,7 +225,8 @@ function buildFrontWall(root, B, mat, plan) {
   const asphalt = asphaltTexture();
   asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping;
   asphalt.repeat.set(40, 12);
-  const lot = new THREE.Mesh(tiledPlane(120, 34, 3), new THREE.MeshStandardMaterial({ map: asphalt, roughness: 1, color: 0x8888aa }));
+  const lotMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 1, color: 0x8888aa, emissiveMap: asphalt, emissive: 0x000000 });
+  const lot = new THREE.Mesh(tiledPlane(120, 34, 3), lotMat);
   lot.rotation.x = -Math.PI / 2;
   lot.position.set(0, -0.01, z + 17.2);
   root.add(lot);
@@ -218,17 +235,42 @@ function buildFrontWall(root, B, mat, plan) {
   curb.position.set(0, 0.0, z + 1.2);
   root.add(curb);
   for (let i = -8; i <= 8; i++) B.box(mat.counterTop, i * 2.8, 0.002, z + 6.5, 0.1, 0.004, 4.5);
-  const sky = new THREE.Mesh(tiledPlane(140, 46, 6), new THREE.MeshBasicMaterial({ map: nightSkyTexture(), fog: false }));
+  const skyMat = new THREE.MeshBasicMaterial({ map: nightSkyTexture(), fog: false });
+  const sky = new THREE.Mesh(tiledPlane(140, 46, 6), skyMat);
   sky.position.set(0, 14, z + 34);
   sky.rotation.y = Math.PI;
   root.add(sky);
   // street lamps
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd28a, toneMapped: false });
   for (const x of [-10, 10]) {
     B.box(mat.frame, x, 3, z + 9, 0.14, 6, 0.14);
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffd28a, toneMapped: false }));
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), glowMat);
     glow.position.set(x, 6, z + 9);
     root.add(glow);
   }
+
+  // The time of day, from the visitor's clock: the sky, how lit the lot is, and whether
+  // the street lamps are on. (Inside, the store's lights are the same at any hour.)
+  const skies = new Map([['night', skyMat.map]]);
+  const LOT = {
+    dawn: { color: 0x9a90b0, emissive: 0x2a2430, lamps: 0xffd28a },
+    day: { color: 0xc8c8d4, emissive: 0x6a6a72, lamps: 0x55524c },
+    dusk: { color: 0x9a8aa8, emissive: 0x221a28, lamps: 0xffd28a },
+    night: { color: 0x8888aa, emissive: 0x000000, lamps: 0xffd28a },
+  };
+  const outside = {
+    phase: null,
+    setPhase(phase) {
+      if (!LOT[phase] || phase === outside.phase) return;
+      outside.phase = phase;
+      if (!skies.has(phase)) skies.set(phase, nightSkyTexture(phase));
+      skyMat.map = skies.get(phase);
+      lotMat.color.setHex(LOT[phase].color);
+      lotMat.emissive.setHex(LOT[phase].emissive);
+      glowMat.color.setHex(LOT[phase].lamps);
+    },
+  };
+  return outside;
 }
 
 function doormatCanvas() {
@@ -276,12 +318,17 @@ function buildCounter(root, B, mat, plan, catalog, animated) {
   B.box(mat.dark, counter.x + 0.08, 1.33, rz, 0.06, 0.26, 0.36);
   const scr = makeCanvas(256, 192);
   const sctx = scr.getContext('2d');
-  sctx.fillStyle = '#031a07';
-  sctx.fillRect(0, 0, 256, 192);
-  sctx.fillStyle = '#39ff6a';
-  sctx.font = `34px ${FONT.vt}`;
-  ['MEMBER #____', 'RENTAL: 2 NIGHTS', 'TOTAL  $ 0.00', '> READY_'].forEach((l, i) => sctx.fillText(l, 14, 40 + i * 40));
-  const screen = signPlane(toTexture(scr), 0.3, 0.22, counter.x + 0.045, 1.35, rz, -Math.PI / 2);
+  const scrTex = toTexture(scr);
+  const showOnRegister = (lines) => {
+    sctx.fillStyle = '#031a07';
+    sctx.fillRect(0, 0, 256, 192);
+    sctx.fillStyle = '#39ff6a';
+    sctx.font = `34px ${FONT.vt}`;
+    lines.slice(0, 4).forEach((l, i) => sctx.fillText(String(l).slice(0, 15), 14, 40 + i * 40));
+    scrTex.needsUpdate = true;
+  };
+  showOnRegister(['MEMBER #____', 'RENTAL: 2 NIGHTS', 'TOTAL  $ 0.00', '> READY_']);
+  const screen = signPlane(scrTex, 0.3, 0.22, counter.x + 0.045, 1.35, rz, -Math.PI / 2);
   root.add(screen);
 
   // candy rack at the counter front
@@ -316,11 +363,12 @@ function buildCounter(root, B, mat, plan, catalog, animated) {
   const lh = 1.05;
   const lw = Math.min(len + 1.4, lh * logo.userData.aspect);
   root.add(signPlane(logo, lw, lw / logo.userData.aspect, W / 2 - 0.03, 2.55, cz, -Math.PI / 2, { additive: true }));
+  return { x: counter.x, z: rz, front, show: showOnRegister };
 }
 
 // ------------------------------------------------------------- entrance decor
 
-function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
+function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt, animated) {
   const { W, D, door } = plan;
   const z = D / 2;
 
@@ -344,12 +392,26 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
   B.box(mat.dark, rx, 0.95, z - 0.705, 0.42, 0.06, 0.01);
   root.add(signPlane(panelTexture(['RETURNS'], { w: 512, h: 192 }), 0.52, 0.2, rx, 0.7, z - 0.701, Math.PI));
   colliders.push({ minX: rx - 0.32, maxX: rx + 0.32, minZ: z - 0.72, maxZ: z });
+  const dropBox = { x: rx, z: z - 0.705 };
 
-  // neon OPEN sign hanging in the window (readable from inside: we face it toward -z)
-  const open = neonTexture('OPEN', '#ff2d4a', { font: FONT.righteous, size: 170, padding: 50 });
-  const oh = 0.42;
-  const ox = door.x + door.width / 2 + 1.3;
-  root.add(signPlane(open, oh * open.userData.aspect, oh, Math.min(ox, W / 2 - 1), 1.9, z - 0.02, Math.PI, { additive: true }));
+  // An LED OPEN 24 HOURS sign hanging in the window. It faces the street, so from inside
+  // it reads back to front. Its border chases round (two frames, swapped).
+  const frames = [0, 1].map((frame) => ledSignTexture(['OPEN', '24 HOURS'], { frame, mirror: true }));
+  const oh = 0.46;
+  const ow = oh * 2.4;
+  const ox = Math.min(door.x + door.width / 2 + 1.3, W / 2 - 1);
+  const openSign = signPlane(frames[0], ow, oh, ox, 1.95, z - 0.02, Math.PI, { additive: true });
+  root.add(openSign);
+  for (const dx of [-ow * 0.4, ow * 0.4]) B.box(mat.chrome, ox + dx, (1.95 + oh / 2 + 2.6) / 2, z - 0.02, 0.004, 2.6 - 1.95 - oh / 2, 0.004);
+  let chase = 0;
+  animated.push({
+    update(dt, t) {
+      const f = Math.floor(t / 0.45) % 2;
+      if (f === chase) return;
+      chase = f;
+      openSign.material.map = frames[f];
+    },
+  });
 
   // cardboard standee promoting the newest upload
   const pick = catalog.videos.reduce((a, b) => (String(b.publishedAt) > String(a.publishedAt) ? b : a), catalog.videos[0]);
@@ -379,6 +441,7 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt) {
     colliders.push({ minX: sx - 0.45, maxX: sx + 0.45, minZ: szz - 0.35, maxZ: szz + 0.35 });
     stand.updateMatrixWorld();
   }
+  return dropBox;
 }
 
 // ------------------------------------------------------------- posters
