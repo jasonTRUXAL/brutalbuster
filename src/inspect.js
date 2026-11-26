@@ -1,6 +1,6 @@
 // Picking a tape off the shelf: the case flies from its slot into your hands,
-// the store dims behind it, and you can spin it to read the back. Grab it and it drops
-// to the bottom of your view, and you carry it round with you (to the lounge's VCR).
+// the store dims behind it, and you can turn it over to read the back. Grab it and it
+// drops to the bottom of your view, and you carry it round with you (to the lounge's VCR).
 import * as THREE from 'three';
 import { DIM } from './config.js';
 import { coverData, drawCover, drawBack, drawSpine, drawPlastic } from './covers.js';
@@ -10,8 +10,18 @@ import { toTexture } from './textures.js';
 const _m = new THREE.Matrix4();
 const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
+const _q2 = new THREE.Quaternion();
 const _s = new THREE.Vector3();
 const _e = new THREE.Euler();
+const UP = new THREE.Vector3(0, 1, 0);
+const RIGHT = new THREE.Vector3(1, 0, 0);
+
+// Turning the held tape: radians per pixel dragged, how quickly the box catches up with
+// your hand, and how fast a flick's spin dies away once you let go.
+const TURN_PER_PX = 0.0105;
+const FOLLOW = 22;
+const GLIDE_FRICTION = 4.5;
+const MAX_SPIN = 14;
 
 function texFrom(drawFn, w, h, d) {
   const c = makeCanvas(w, h);
@@ -64,7 +74,13 @@ export class Inspector {
     this.stride = { phase: 0, amount: 0 };
     this.state = 'idle'; // idle | in | held | out
     this.t = 0;
-    this.spin = { yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0 };
+    // How the held box is turned, in the view's frame: `turn` is where your hand has put
+    // it, `shown` eases after it. A flick keeps it spinning a moment (`spin`, rad/s).
+    this.turn = new THREE.Quaternion();
+    this.shown = new THREE.Quaternion();
+    this.spin = { x: 0, y: 0 };
+    this.dragging = false;
+    this.pending = { x: 0, y: 0 }; // pixels dragged since the last frame
     this.startPos = new THREE.Vector3();
     this.startQuat = new THREE.Quaternion();
     this.onClosed = null;
@@ -89,7 +105,11 @@ export class Inspector {
     this.mesh.position.copy(this.startPos);
     this.mesh.quaternion.copy(this.startQuat);
 
-    this.spin = { yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0 };
+    this.turn.identity();
+    this.shown.identity();
+    this.spin.x = this.spin.y = 0;
+    this.pending.x = this.pending.y = 0;
+    this.dragging = false;
     this.state = 'in';
     this.t = 0;
   }
@@ -105,8 +125,9 @@ export class Inspector {
     this._build(video, slotIndex);
     this.mesh.position.copy(pos);
     this.mesh.quaternion.copy(quat);
-    this.spin.targetYaw = Math.round(this.spin.targetYaw / (2 * Math.PI)) * 2 * Math.PI; // front on
-    this.spin.yaw = this.spin.targetYaw - 0.6; // (a little turn, so you see it change)
+    this.turn.identity(); // front on
+    this.shown.setFromAxisAngle(UP, -0.6); // (a little turn, so you see it change)
+    this.spin.x = this.spin.y = 0;
     return true;
   }
 
@@ -199,30 +220,101 @@ export class Inspector {
     this.carry = null;
   }
 
+  /** Turn it round to the other side (a quick click or tap on it, or Space). */
   flip() {
-    this.spin.targetYaw = Math.round(this.spin.targetYaw / Math.PI) * Math.PI + Math.PI;
+    this.spin.x = this.spin.y = 0;
+    this.turn.premultiply(_q2.setFromAxisAngle(UP, Math.PI));
   }
 
+  dragStart() {
+    this.dragging = true;
+    this.spin.x = this.spin.y = 0;
+  }
+
+  /** Dragged `dx`, `dy` pixels: the box turns the way your hand goes, like a trackball. */
   drag(dx, dy) {
-    this.spin.targetYaw += dx * 0.01;
-    this.spin.targetPitch = clamp(this.spin.targetPitch + dy * 0.008, -0.9, 0.9);
+    this.dragging = true;
+    this.pending.x += dx;
+    this.pending.y += dy;
   }
 
-  /** Where the tape hovers when held: left of centre on wide screens, upper on tall ones. */
+  /** Let go: whatever spin your hand had carries on and dies away. */
+  dragEnd() {
+    this.dragging = false;
+  }
+
+  /** Turn by `ax` radians about the view's vertical and `ay` about its horizontal. */
+  _rotate(ax, ay) {
+    if (ax) this.turn.premultiply(_q2.setFromAxisAngle(UP, ax));
+    if (ay) this.turn.premultiply(_q2.setFromAxisAngle(RIGHT, ay));
+  }
+
+  _updateTurn(dt) {
+    const s = this.spin;
+    if (this.dragging) {
+      const ax = this.pending.x * TURN_PER_PX;
+      const ay = this.pending.y * TURN_PER_PX;
+      this._rotate(ax, ay);
+      // how fast the hand is going (smoothed), for the glide after it lets go
+      if (dt > 0) {
+        const k = 1 - Math.exp(-dt * 25);
+        s.x += (clamp(ax / dt, -MAX_SPIN, MAX_SPIN) - s.x) * k;
+        s.y += (clamp(ay / dt, -MAX_SPIN, MAX_SPIN) - s.y) * k;
+      }
+    } else if (s.x || s.y) {
+      this._rotate(s.x * dt, s.y * dt);
+      const f = Math.exp(-dt * GLIDE_FRICTION);
+      s.x *= f;
+      s.y *= f;
+      if (Math.abs(s.x) + Math.abs(s.y) < 0.02) s.x = s.y = 0;
+    }
+    this.pending.x = this.pending.y = 0;
+    this.turn.normalize();
+    this.shown.slerp(this.turn, 1 - Math.exp(-dt * FOLLOW));
+  }
+
+  /** Half the view's height at `dist` metres. */
+  _halfH(dist) {
+    return Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * dist;
+  }
+
+  /** How far away the tape has to be to fill `frac` of the view's height. */
+  _distFor(frac) {
+    return DIM.CASE_H / (frac * 2 * this._halfH(1));
+  }
+
+  /** `frac` of the view's height, or less if that would be more than `maxW` of its width. */
+  _fit(frac, maxW) {
+    const widthFrac = (frac * DIM.CASE_W) / (DIM.CASE_H * this.camera.aspect);
+    return widthFrac > maxW ? (frac * maxW) / widthFrac : frac;
+  }
+
+  /** Wide screens put the panel beside the tape; narrow ones dock it at the bottom (style.css). */
+  get _wide() {
+    return this.camera.aspect > 1 && window.innerWidth > 760;
+  }
+
+  /**
+   * Where the tape is held: big and close. Wide screens: left of centre, beside the
+   * panel, about three quarters of the view's height. Tall ones: in the top half, above
+   * the panel.
+   */
   holdPose(out) {
-    const dist = 0.29;
-    const halfH = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * dist;
-    const halfW = halfH * this.camera.aspect;
-    if (this.camera.aspect > 1.1) out.set(-halfW * 0.33, 0.0, -dist);
-    else out.set(0, halfH * 0.42, -dist * 1.45);
-    return out;
+    if (this._wide) {
+      const dist = this._distFor(this._fit(0.74, 0.4));
+      return out.set(-this._halfH(dist) * this.camera.aspect * 0.3, 0, -dist);
+    }
+    const dist = this._distFor(this._fit(0.4, 0.62));
+    return out.set(0, this._halfH(dist) * 0.46, -dist);
   }
 
-  /** Where a carried tape rides: centred, in the bottom third of the view (above the hints). */
+  /**
+   * Where a carried tape rides: centred at the bottom of the view, big, with its lower
+   * half out of sight, the way you'd hold it in front of you as you walk.
+   */
   carryPose(out) {
-    const dist = 0.62;
-    const halfH = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * dist;
-    return out.set(0, -halfH * 0.6, -dist);
+    const dist = this._distFor(this._fit(0.7, 0.8));
+    return out.set(0, -this._halfH(dist) * 0.98, -dist);
   }
 
   /** `moving` (0 to 1) is how fast you're walking: the carried tape bobs along. */
@@ -235,11 +327,10 @@ export class Inspector {
     if (this.state === 'idle' || !this.mesh) return;
     this.t += dt;
     const hold = this.holdPose(_p);
-    const s = this.spin;
-    s.yaw += (s.targetYaw - s.yaw) * (1 - Math.exp(-dt * 9));
-    s.pitch += (s.targetPitch - s.pitch) * (1 - Math.exp(-dt * 9));
-    const sway = Math.sin(performance.now() / 900) * 0.04;
-    _q.setFromEuler(_e.set(s.pitch + 0.03, s.yaw + sway, 0, 'YXZ'));
+    this._updateTurn(dt);
+    // (a slight lean back, and a gentle sway while you're not turning it)
+    const sway = this.dragging ? 0 : Math.sin(performance.now() / 900) * 0.03;
+    _q.copy(this.shown).premultiply(_q2.setFromEuler(_e.set(0.03, sway, 0, 'YXZ')));
 
     if (this.state === 'in') {
       const k = easeInOut(Math.min(1, this.t / 0.5));
@@ -269,8 +360,9 @@ export class Inspector {
     st.amount += (moving - st.amount) * (1 - Math.exp(-dt * 6));
     st.phase += dt * 9 * st.amount;
     const pose = this.carryPose(_p);
-    pose.x += Math.cos(st.phase / 2) * 0.004 * st.amount;
-    pose.y += Math.abs(Math.sin(st.phase)) * 0.008 * st.amount;
+    const reach = -pose.z; // (the bob scales with the distance, so it looks the same at any size)
+    pose.x += Math.cos(st.phase / 2) * 0.0065 * reach * st.amount;
+    pose.y += Math.abs(Math.sin(st.phase)) * 0.013 * reach * st.amount;
     const sway = Math.sin(performance.now() / 1100) * 0.025;
     _q.setFromEuler(_e.set(-0.14, 0.05 + sway, 0.015, 'YXZ'));
     if (c.state === 'in') {

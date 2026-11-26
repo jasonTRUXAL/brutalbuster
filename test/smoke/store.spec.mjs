@@ -60,6 +60,9 @@ const test = base.extend({
       if (bb.mode === 'sit') bb.standUp(false);
       bb.emptyHands(); // nothing carried, nothing in the VCR
       bb.controls.crouchToggle = false;
+      // (Q asks for the mouse back, and a headless browser saying no twice switches on
+      // drag-to-look, which aims with the mouse rather than the crosshair)
+      bb.controls.dragLook = false;
       if (bb.ps1.enabled) bb.setPS1(false, false);
       bb.advance(1); // let any put-back / stand-up animation finish
       if (bb.mode !== 'splash') bb.setMode('walk');
@@ -99,7 +102,10 @@ test('entering the store', async ({ store: page }, testInfo) => {
   if (isPhone(testInfo)) {
     await expect(page.locator('body')).toHaveClass(/touch/);
     expect(await page.evaluate(() => window.__bb.mode)).toBe('walk'); // touch: no pointer lock
-    await expect(page.locator('.hud-help.touch-only')).toBeVisible();
+    // the two halves of the screen are labelled straight away (you haven't moved yet)
+    await advance(page, 0.1);
+    await expect(page.locator('#touch-guide')).toHaveCSS('opacity', '1');
+    await expect(page.locator('#touch-guide .tg-move b')).toHaveText('Walk');
   } else {
     // headless browsers may refuse pointer lock, leaving the mouse free ('paused')
     await page.waitForTimeout(150);
@@ -283,7 +289,14 @@ test('PS1 mode: a blocky world, a held tape, and back to normal', async ({ store
   expect(back.same).toBeLessThan(ps1.same - 0.2);
 });
 
-test('pick up a tape, flip it, put it back', async ({ store: page }, testInfo) => {
+/** Which way the held box's front faces, in the held view (z: +1 at you, -1 away). */
+const heldFacing = (page) =>
+  page.evaluate(() => {
+    const { inspector, camera } = window.__bb;
+    return new camera.position.constructor(0, 0, 1).applyQuaternion(inspector.mesh.quaternion).z;
+  });
+
+test('pick up a tape, turn it over, put it back with Q', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'keyboard flow; touch is covered separately');
   const slot = await genreSlot(page, 3);
   const title = await page.evaluate((i) => {
@@ -295,37 +308,141 @@ test('pick up a tape, flip it, put it back', async ({ store: page }, testInfo) =
   await expect(page.locator('.ip-title')).toHaveText(title);
   expect(await page.evaluate(() => window.__bb.inspector.state)).toBe('held');
   expect(await page.evaluate((i) => window.__bb.tapes.hiddenSet.has(i), slot)).toBe(true);
+  // just three buttons: no Flip box or Copy link any more
+  await expect(page.locator('.ip-actions [data-act]')).toHaveCount(2);
+  await expect(page.locator('[data-act="flip"], [data-act="share"]')).toHaveCount(0);
+  expect(await heldFacing(page)).toBeGreaterThan(0.9);
 
+  // Space turns it round (so does a quick click on it)
   await page.keyboard.press('Space');
   await advance(page, 1);
-  const yaw = await page.evaluate(() => window.__bb.inspector.spin.yaw);
-  expect(Math.abs(yaw - Math.PI)).toBeLessThan(0.05);
+  expect(await heldFacing(page)).toBeLessThan(-0.9);
 
-  await page.keyboard.press('Escape');
+  // dragging turns it the way the hand goes, and a flick carries on a little after letting go
+  const turned = await page.evaluate(() => {
+    const { inspector, advance } = window.__bb;
+    inspector.dragStart();
+    for (let i = 0; i < 6; i++) {
+      inspector.drag(12, 0);
+      advance(1 / 60);
+    }
+    inspector.dragEnd();
+    const atRelease = inspector.turn.clone();
+    advance(2.5);
+    return { glided: inspector.turn.angleTo(atRelease), settled: inspector.spin.x };
+  });
+  expect(turned.glided, 'it glides on after you let go').toBeGreaterThan(0.05);
+  expect(turned.settled, 'and then stops').toBe(0);
+
+  await page.keyboard.press('q');
   await advance(page, 0.6);
   await expect(page.locator('#inspect')).toBeHidden();
-  await expect(page.locator('#resume-hint')).toBeVisible(); // mouse freed, store still visible
+  // (Q is a key press, so the store asks for the mouse back; headless browsers may say no)
+  expect(['walk', 'paused']).toContain(await page.evaluate(() => window.__bb.mode));
   expect(await page.evaluate(() => window.__bb.inspector.state)).toBe('idle');
   expect(await page.evaluate(() => window.__bb.tapes.hiddenSet.size)).toBe(0);
 });
 
-test('a held tape is in the address bar, and Copy link gives a link to it', async ({ store: page }, testInfo) => {
-  test.skip(isPhone(testInfo), 'phones use the share sheet');
+test('the hint bar: at the bottom, once you have been still for two seconds', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'the phone has its own test below');
+  // stand in front of a tape at eye level, aiming at it (as goToVideo does)
+  const slot = await page.evaluate(async () => {
+    const bb = window.__bb;
+    const { DIM } = await import('/src/config.js');
+    // (mid-way along a gondola: at the end of a run, walls and corners push you about)
+    const i = bb.plan.slots.findIndex((s) => s.row === 3 && s.face.room === 'main' && s.face.kind === 'gondola' && s.col > 2);
+    bb.setMode('walk');
+    const p = new bb.camera.position.constructor().setFromMatrixPosition(bb.tapes.worldMatrix(i));
+    const n = bb.plan.slots[i].face.n;
+    bb.controls.teleport(p.x + n.x * 1.05, p.z + n.z * 1.05, Math.atan2(n.x, n.z), Math.atan2(p.y - DIM.EYE, 1.05));
+    return i;
+  });
+  const state = () =>
+    page.evaluate(() => ({ still: document.body.classList.contains('still'), show: document.querySelector('#hints').dataset.show, title: document.querySelector('.ht-title').textContent }));
+  await advance(page, 0.5);
+  const early = await state();
+  expect(early.still, 'half a second after turning round: nothing yet').toBe(false);
+  expect(early.show).toBe('target');
+  await advance(page, 2);
+  const late = await state();
+  expect(late.still).toBe(true);
+  expect(late.title).toBe(await page.evaluate((i) => window.__bb.plan.slots[i].video.title, slot));
+  await expect(page.locator('#hints')).toHaveCSS('opacity', '1');
+  const box = await page.locator('#hints .hint-target').boundingBox();
+  expect(box.y, 'the hint bar is at the bottom of the screen').toBeGreaterThan(page.viewportSize().height * 0.8);
+
+  // walking off puts it away at once
+  await page.evaluate(() => window.__bb.controls.keys.add('KeyS'));
+  await advance(page, 0.3);
+  await page.evaluate(() => window.__bb.controls.keys.delete('KeyS'));
+  expect((await state()).still).toBe(false);
+  // with nothing in front of you, it's the keys (and no Esc among them)
+  await page.evaluate(() => {
+    const bb = window.__bb;
+    bb.controls.teleport(bb.plan.spawn.x, bb.plan.spawn.z, bb.plan.spawn.yaw, 1.1); // (looking at the ceiling)
+  });
+  await advance(page, 2.5);
+  expect(await state()).toMatchObject({ still: true, show: 'walk' });
+  await expect(page.locator('#hints .hint-keys.desktop-only')).toContainText('crouch');
+  await expect(page.locator('#hints .hint-keys.desktop-only')).not.toContainText('Esc');
+});
+
+test('aiming at the very edge of a tape keeps it highlighted (no flicker)', async ({ store: page }) => {
+  const r = await page.evaluate(async () => {
+    const { tapes, plan } = window.__bb;
+    const { DIM } = await import('/src/config.js');
+    const V = window.__bb.camera.position.constructor;
+    const i = plan.slots.findIndex((s) => s.section.kind === 'genre' && s.row === 2);
+    // looking along the shelf at 45 degrees, at the tape's front face 4mm in from its side
+    const m = tapes.worldMatrix(i);
+    const edge = new V(DIM.CASE_W / 2 - 0.004, 0, DIM.CASE_D / 2).applyMatrix4(m);
+    const eye = new V(DIM.CASE_W / 2 - 0.004 + 0.7, 0, DIM.CASE_D / 2 + 0.7).applyMatrix4(m);
+    const ray = { origin: eye, direction: edge.clone().sub(eye).normalize() };
+    tapes.setHover(-1);
+    const before = tapes.hit(ray, 3)?.index;
+    tapes.setHover(i); // it slides out under the crosshair, and from this angle, out from under it
+    // (the old aim test only tried the slid-out position: try just that)
+    const kept = [tapes.inverse[i], tapes.base[i]];
+    [tapes.inverse[i], tapes.base[i]] = [tapes.hoverInverse, tapes.hoverMatrix];
+    const slidOnly = tapes.hit(ray, 3)?.index;
+    [tapes.inverse[i], tapes.base[i]] = kept;
+    const after = tapes.hit(ray, 3)?.index;
+    tapes.setHover(-1);
+    return { i, before, slidOnly, after };
+  });
+  expect(r.before).toBe(r.i);
+  expect(r.slidOnly, 'slid out, the tape is clear of the ray (this was the flicker)').not.toBe(r.i);
+  expect(r.after, 'but it still counts as aimed at').toBe(r.i);
+});
+
+test('a tape in your hands is in the address bar (held or carried), to copy and share', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'same on a phone');
+  const tapeInUrl = () => new URL(page.url()).searchParams.get('tape');
   const slot = await genreSlot(page, 2);
   const id = await page.evaluate((i) => {
     window.__bb.pickUp(i);
     return window.__bb.plan.slots[i].video.id;
   }, slot);
   await advance(page, 0.8);
-  expect(new URL(page.url()).searchParams.get('tape')).toBe(id);
+  expect(tapeInUrl()).toBe(id);
   expect(new URL(page.url()).searchParams.has('manual')).toBe(true); // other settings kept
-  await page.locator('.ip-share').click();
-  // (headless browsers may refuse the clipboard: then the link is shown to copy by hand)
-  await expect(page.locator('.ip-share.done, .ip-link').first()).toBeVisible();
-  if (await page.locator('.ip-link').isVisible()) await expect(page.locator('.ip-link')).toHaveValue(new RegExp(`\\?tape=${id}$`));
   await page.locator('[data-act="back"]').click();
   await advance(page, 0.6);
-  expect(new URL(page.url()).searchParams.has('tape')).toBe(false);
+  expect(tapeInUrl()).toBeNull();
+
+  // grab one and walk off with it: it stays in the address until it's out of your hands
+  const linked = await page.evaluate(() => {
+    const bb = window.__bb;
+    const i = bb.plan.slots.findIndex((s) => s.section.kind === 'genre' && s.video.youtubeId);
+    bb.pickUp(i);
+    bb.advance(0.8);
+    bb.grab();
+    bb.setMode('walk');
+    return bb.plan.slots[i].video.id;
+  });
+  expect(tapeInUrl()).toBe(linked);
+  await page.evaluate(() => window.__bb.emptyHands());
+  expect(tapeInUrl()).toBeNull();
 });
 
 test('Streams: take a tape out of a box set and swap it for the next', async ({ store: page }, testInfo) => {
@@ -346,7 +463,7 @@ test('Streams: take a tape out of a box set and swap it for the next', async ({ 
   await expect(page.locator('.ip-title')).toHaveText(first);
 });
 
-test('the membership card: tokens for the visit, opened with M, closed with Esc', async ({ store: page }, testInfo) => {
+test('the membership card: tokens for the visit, opened with M, closed with Q', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'the token chip is the same on a phone');
   const tokens = await page.evaluate(() => window.__bb.member.state.tokens);
   expect(tokens).toBeGreaterThan(0); // (entering paid the welcome and the day's visit)
@@ -355,7 +472,7 @@ test('the membership card: tokens for the visit, opened with M, closed with Esc'
   await expect(page.locator('#card')).toBeVisible();
   await expect(page.locator('.mc-token-count')).toHaveText(String(tokens));
   await expect(page.locator('.cp-stamps i.on')).toHaveCount(1);
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await expect(page.locator('#card')).toBeHidden();
 });
 
@@ -395,7 +512,7 @@ test('return a tape through the drop box; check one out at the counter', async (
   expect(result.mode).toBe('receipt');
   expect(result.carrying).toBe(true); // (you rented it: it's still yours)
   await expect(page.locator('#receipt .slip-body')).toContainText('DUE BACK');
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); // (Esc still closes things, mouse-free)
   await expect(page.locator('#receipt')).toBeHidden();
 });
 
@@ -475,7 +592,7 @@ test('Grab a tape, carry it to the lounge VCR, and it plays on the big screen', 
       const at = { couches: [L.x1 - 0.8, L.screen.z, 0], vcr: [L.cabinet.x + L.cabinet.d / 2 + 0.55, L.vcr.z, -0.3] }[w];
       bb.controls.teleport(at[0], at[1], Math.PI / 2, at[2]);
       bb.advance(0.1);
-      return document.querySelector('#tooltip').hidden ? null : document.querySelector('.tt-title').textContent;
+      return document.querySelector('#hints').dataset.show === 'target' ? document.querySelector('.ht-title').textContent : null;
     }, where);
   expect(await stand('couches')).toBeNull();
   expect(await stand('vcr')).toBe('Insert tape');
@@ -510,7 +627,7 @@ test('Grab a tape, carry it to the lounge VCR, and it plays on the big screen', 
   await expect(player).toHaveAttribute('src', new RegExp(`youtube-nocookie\\.com/embed/${linked}\\?autoplay=1`));
   await advance(page, 3.5);
   expect(await screen()).toEqual({ mode: 'video', vcr: expect.stringMatching(/^0:00:0\d$/), player: '' }); // (the counter's running)
-  expect(await page.evaluate(() => document.querySelector('#tooltip').hidden), 'empty-handed at the VCR, nothing is said').toBe(true);
+  expect(await page.evaluate(() => document.querySelector('#hints').dataset.show), 'empty-handed at the VCR, nothing is said').not.toBe('target');
   await page.evaluate(() => {
     const L = window.__bb.plan.lounge;
     window.__bb.controls.teleport(L.x1 - 0.8, L.screen.z, Math.PI / 2, -0.05);
@@ -542,7 +659,7 @@ test('sit on a lounge couch, and stand back up', async ({ store: page }, testInf
     bb.setMode('walk');
     bb.controls.teleport(sofa.x, sofa.z + sofa.len / 2 + 0.9, 0, -0.5); // at the end of the couch, looking at it
     bb.advance(0.1);
-    return { kind: bb.target?.kind, title: document.querySelector('.tt-title').textContent, at: bb.camera.position.toArray() };
+    return { kind: bb.target?.kind, title: document.querySelector('.ht-title').textContent, at: bb.camera.position.toArray() };
   });
   expect(aimed).toMatchObject({ kind: 'seat', title: 'Couch' });
   await page.keyboard.press('KeyE');
@@ -551,7 +668,7 @@ test('sit on a lounge couch, and stand back up', async ({ store: page }, testInf
   expect(seated.mode).toBe('sit');
   expect(seated.eye).toBeCloseTo(1.14, 2);
   await expect(page.locator('#seat [data-act="stand"]')).toBeVisible();
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await advance(page, 1);
   const stood = await page.evaluate(() => ({ mode: window.__bb.mode, at: window.__bb.camera.position.toArray() }));
   expect(['paused', 'walk'], 'up off the couch (paused, or walking with drag-to-look)').toContain(stood.mode);
@@ -655,6 +772,39 @@ test('crouching: hold C (a toggle on a touchscreen)', async ({ store: page }, te
   expect(await eye()).toBeCloseTo(1.62, 2);
 });
 
+test('phone: the halves are labelled until you have walked and looked', async ({ store: page }, testInfo) => {
+  test.skip(!isPhone(testInfo), 'phone only');
+  const vp = page.viewportSize();
+  /** Drag a finger across the canvas from (x, y) by (dx, dy). */
+  const swipe = (x, y, dx, dy) =>
+    page.evaluate(
+      ([x, y, dx, dy]) => {
+        const canvas = document.getElementById('scene');
+        const touch = (cx, cy) => new Touch({ identifier: 7, target: canvas, clientX: cx, clientY: cy });
+        const fire = (type, t) => canvas.dispatchEvent(new TouchEvent(type, { changedTouches: [t], touches: type === 'touchend' ? [] : [t], bubbles: true, cancelable: true }));
+        fire('touchstart', touch(x, y));
+        for (let k = 1; k <= 6; k++) fire('touchmove', touch(x + (dx * k) / 6, y + (dy * k) / 6));
+        fire('touchend', touch(x + dx, y + dy));
+      },
+      [x, y, dx, dy],
+    );
+  await page.evaluate(() => window.__bb.setMode('walk'));
+  await advance(page, 2.5);
+  const learned = () => page.evaluate(() => document.body.classList.contains('touch-learned'));
+  expect(await learned()).toBe(false);
+  await expect(page.locator('#touch-guide')).toHaveCSS('opacity', '1');
+  await swipe(vp.width * 0.2, vp.height * 0.7, 0, -50); // walk
+  await advance(page, 0.1);
+  expect(await learned(), 'walked, not looked yet').toBe(false);
+  await swipe(vp.width * 0.7, vp.height * 0.5, 80, 0); // look
+  await advance(page, 2.5);
+  expect(await learned()).toBe(true);
+  await expect(page.locator('#touch-guide')).toHaveCSS('opacity', '0');
+  // from then on, being still brings up the hint bar's one line instead
+  expect(await page.evaluate(() => document.querySelector('#hints').dataset.show)).toBe('walk');
+  await expect(page.locator('#hints .hint-keys.touch-only')).toContainText('Tap a tape');
+});
+
 test('phone: pick up a tape, panel at the bottom, put it back', async ({ store: page }, testInfo) => {
   test.skip(!isPhone(testInfo), 'phone only');
   const slot = await genreSlot(page, 2);
@@ -692,7 +842,7 @@ const faceMachine = (page, kind, back = 1.3) =>
 test('gacha: crouch down, turn the crank, get a capsule, stand up', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'touch version below');
   const title = await faceMachine(page, 'gacha');
-  await expect(page.locator('#tooltip')).toContainText('crouch down and play');
+  await expect(page.locator('#hints .hint-target')).toContainText('crouch down and play');
   await page.evaluate(() => {
     window.__prizes = [];
     window.addEventListener('bb:prize', (e) => window.__prizes.push(e.detail));
@@ -715,7 +865,7 @@ test('gacha: crouch down, turn the crank, get a capsule, stand up', async ({ sto
   expect(after.prizes[0].kind).toBe('capsule');
   await expect(page.locator('#play .pp-result')).toContainText('capsule');
 
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('q');
   await advance(page, 1);
   const stood = await page.evaluate(() => ({ mode: window.__bb.mode, busy: window.__bb.arcade.busy, eye: window.__bb.camera.position.y }));
   expect(['walk', 'paused']).toContain(stood.mode);
@@ -726,7 +876,7 @@ test('gacha: crouch down, turn the crank, get a capsule, stand up', async ({ sto
 test('Lucky Hit: step up, aim, drop, the ball drifts down and wins a prize', async ({ store: page }, testInfo) => {
   test.skip(isPhone(testInfo), 'touch play is covered by the gacha phone test (same panel)');
   await faceMachine(page, 'luckyhit', 1.7);
-  await expect(page.locator('#tooltip')).toContainText('step up and play');
+  await expect(page.locator('#hints .hint-target')).toContainText('step up and play');
   await page.keyboard.press('e');
   await advance(page, 0.9);
   const info = await page.evaluate(() => {

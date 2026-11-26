@@ -199,12 +199,14 @@ export function buildFace(root, B, mat, face) {
   // shelves + price channel lips
   const [sx, sz] = at(L / 2, DIM.SHELF_DEPTH / 2);
   // The lip stands 4mm proud of the shelf front and covers the board's edge, so no two
-  // faces share a plane (coplanar faces flicker as the camera moves).
+  // faces share a plane (coplanar faces flicker as the camera moves). It also stops 2mm
+  // short of each end, where the end upright's side would otherwise share its plane
+  // (yellow flickering over blue at the end of a run).
   const [lx, lz] = at(L / 2, 0.004);
   for (let row = 0; row < DIM.SHELF_COUNT; row++) {
     const y = rowTopY(row);
     B.aligned(mat.shelf, sx, y - 0.01, sz, L, 0.02, DIM.SHELF_DEPTH, t);
-    B.aligned(mat.lip, lx, y + 0.0065, lz, L, 0.057, 0.016, t);
+    B.aligned(mat.lip, lx, y + 0.0065, lz, L - 0.004, 0.057, 0.016, t);
   }
   // top cap
   B.aligned(mat.shelf, sx, DIM.UNIT_H - 0.015, sz, L, 0.03, DIM.SHELF_DEPTH, t);

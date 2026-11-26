@@ -253,37 +253,74 @@ body.mouse-free #crosshair { display: none; }
   animation: hintPulse 2.4s ease-in-out infinite;
 }
 @keyframes hintPulse { 50% { opacity: 0.55; } }
-#tooltip {
-  position: absolute;
-  left: 50%;
-  top: calc(50% + 22px);
-  transform: translateX(-50%);
-  max-width: min(420px, 86vw);
-  text-align: center;
-  padding: 8px 14px 9px;
-  border-radius: 10px;
-  background: var(--glass);
-  border: 1px solid var(--line);
-  backdrop-filter: blur(8px);
-}
-.tt-aisle { font: 400 0.85rem/1 var(--display); letter-spacing: 0.18em; color: var(--yellow); }
-.tt-title { margin-top: 4px; font: 700 1.05rem/1.2 var(--body); }
-.tt-hint { margin-top: 4px; font: 1rem/1 var(--mono); color: var(--muted); }
-.hud-help {
-  position: absolute;
+
+/* The hint bar (bottom centre): what you're aiming at, or how to get about. main.js sets
+   body.still once you've been still for a couple of seconds; it fades out as you move. */
+#hints {
+  position: fixed;
   left: 50%;
   bottom: max(14px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
+  z-index: 16;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+body.still #hints { opacity: 1; transition-duration: 0.45s; }
+#hints > * { display: none; }
+#hints[data-show='target'] .hint-target,
+#hints[data-show='walk'] .hint-keys,
+#hints[data-show='inspect'] .hint-inspect {
   display: flex;
-  gap: 16px;
-  padding: 7px 14px;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 7px 16px;
   border-radius: 999px;
-  background: rgba(8, 8, 20, 0.55);
+  background: rgba(8, 8, 20, 0.62);
+  backdrop-filter: blur(8px);
   font-size: 0.92rem;
   color: var(--muted);
-  white-space: nowrap;
+  text-align: center;
 }
-.hud-help.touch-only { white-space: normal; text-align: center; width: max-content; max-width: calc(100vw - 32px); }
+body.touch .hint-keys.desktop-only, body:not(.touch) .hint-keys.touch-only { display: none !important; }
+.hint-target { padding-top: 8px !important; padding-bottom: 8px !important; }
+.ht-aisle { font: 400 0.85rem/1 var(--display); letter-spacing: 0.18em; color: var(--yellow); }
+.ht-title { font: 700 1.02rem/1.2 var(--body); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46ch; }
+.ht-act { font: 1rem/1 var(--mono); }
+
+/* A touchscreen's two halves (controls.js splits them at 42%), labelled until both
+   have been used. Touching either fades the labels out, to the plain view. */
+#touch-guide { position: absolute; inset: 0; opacity: 0; transition: opacity 0.15s ease; }
+body.still[data-mode='walk']:not(.touch-learned) #touch-guide { opacity: 1; transition-duration: 0.45s; }
+.tg-zone {
+  position: absolute;
+  top: 18%;
+  bottom: calc(max(64px, env(safe-area-inset-bottom) + 50px) + 56px); /* clear of Crouch */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-bottom: 6%;
+  border: 2px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 22px;
+  background: rgba(8, 8, 20, 0.22);
+  text-align: center;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+.tg-move { left: 10px; width: calc(42% - 15px); }
+.tg-look { right: 10px; left: calc(42% + 5px); }
+.tg-zone b { font: 400 1.5rem/1 var(--display); letter-spacing: 0.12em; color: var(--yellow); }
+.tg-zone span { max-width: 90%; font-size: 0.88rem; line-height: 1.25; color: var(--text); }
+.tg-stick, .tg-drag { width: 92px; height: 92px; margin-bottom: 10px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); position: relative; }
+.tg-stick i { position: absolute; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: rgba(255, 198, 26, 0.7); animation: tgStick 2.4s ease-in-out infinite; }
+@keyframes tgStick { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-22px); } 60% { transform: translate(16px, 6px); } }
+.tg-drag { border-style: dashed; }
+.tg-drag::after { content: ''; position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: rgba(255, 255, 255, 0.75); animation: tgDrag 2.4s ease-in-out infinite; }
+@keyframes tgDrag { 0%, 100% { transform: translateX(-24px); } 50% { transform: translateX(24px); } }
 #joystick {
   position: fixed;
   width: 112px;
@@ -342,13 +379,11 @@ body.drag-look #crosshair { display: none; }
 .ip-desc { margin: 14px 0 18px; font-size: 1.02rem; line-height: 1.45; color: #d7d4e6; white-space: pre-line; max-height: 34vh; overflow: auto; }
 .ip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ip-yt { text-decoration: none; color: var(--cyan); }
-.ip-share.done { color: var(--yellow); }
 .ip-set { display: flex; align-items: center; gap: 8px; margin: 8px 0 2px; padding: 6px 8px; border-radius: 8px; background: rgba(179, 136, 255, 0.14); border: 1px solid rgba(179, 136, 255, 0.35); }
 .ip-set[hidden] { display: none; }
 .ip-set .btn { padding: 4px 10px; min-width: 0; }
 .ip-set-label { flex: 1; text-align: center; font-size: 0.9rem; line-height: 1.25; color: #e6dcff; }
 .ip-set-label b { display: block; color: #fff; letter-spacing: 0.04em; }
-.ip-link { width: 100%; margin-top: 6px; padding: 6px 8px; font: inherit; color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; }
 .splash-tape { margin: -8px 0 18px; font-size: 1rem; color: var(--muted); }
 .splash-tape strong { color: #fff; }
 .ip-note { margin: 12px 0 0; font-size: 0.92rem; color: var(--muted); }
@@ -548,10 +583,18 @@ body.drag-look #crosshair { display: none; }
   .ip-desc { max-height: 14vh; margin: 8px 0 12px; font-size: 0.95rem; }
   .ip-title { font-size: 1.7rem; margin: 6px 0 4px; }
   .btn { font-size: 1.1rem; }
-  .hud-help.desktop-only { display: none; }
+  /* the held tape's panel is docked at the bottom here, so its hint goes up top */
+  #hints[data-show='inspect'] { bottom: auto; top: max(14px, env(safe-area-inset-top)); }
   .hud-brand .brand-sub { display: none; }
   .hud-brand .brand-name { font-size: 1rem; }
   .chip-more { display: none; }
+}
+/* phones: the chips need the whole width (the name's on the splash, and on the building) */
+@media (max-width: 520px) {
+  .hud-brand { display: none; }
+  .hud-top { justify-content: flex-end; left: 10px; right: 10px; }
+  .hud-chips { gap: 6px; }
+  .hud-chips .chip { padding: 0.55em 0.7em 0.45em; font-size: 0.98rem; }
   .splash-card { padding: 26px 18px 20px; }
   .controls-legend { grid-template-columns: 1fr; }
 }

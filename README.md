@@ -62,11 +62,11 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Walk | `W A S D` / arrow keys (`Shift` to hurry) | drag on the left half |
 | Look | mouse | drag on the right half |
 | Pick up a tape | click (or `E`) | tap it |
-| Turn the box over | `Space`, drag it, or **Flip box** | drag or tap it |
+| Turn the box over | drag it (a flick keeps it spinning a moment); a quick click or `Space` turns it round | drag it; tap to turn it round |
 | Take it with you | `G` or **Grab** | **Grab** |
 | Watch it on YouTube | **View on YouTube** | **View on YouTube** |
-| Share it | **Copy link** | **Copy link** (opens the share sheet) |
-| Put it back | `Esc` | **Put back** |
+| Share it | copy the address bar (it's a link to the tape in your hands) | the same |
+| Put it back | `Q` or **Put back** | **Put back** |
 | Return a tape you're carrying | walk up to the **RETURNS** box by the door, click (or `E`) | walk up to it, tap |
 | Rent it at the counter (a rental slip) | walk up to the register, click (or `E`) | walk up to it, tap |
 | Put the tape in the lounge's VCR | walk up to it holding a tape, click (or `E`) | walk up to it, tap |
@@ -78,15 +78,20 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | Play a prize-corner machine | aim at it and click (or `E`) | tap it |
 | Turn the gacha crank | `Space`, or **Turn the crank** | **Turn the crank** |
 | Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
-| Stand back up | `Esc`, **Stand up**, or start walking | **Stand up** |
+| Stand back up | `Q`, **Stand up**, or start walking | **Stand up** |
+| Close the card or the rental slip | `Q` | **Close** |
 | PS1 Mode on / off | `P`, or **PS1 mode** | **PS1** |
 | Sound on / off | `N`, or **Sound** | **Sound** |
+
+`Q` backs out of things rather than `Esc`: on `Esc` the browser lets go of the mouse and won't let the store take it straight back, so you'd have to click to look around again. `Esc` still works (it just leaves the mouse free), and it closes the store directory, whose search box has the keyboard.
+
+**Hints stay out of the way.** What you're aiming at, and the keys, show in one bar at the bottom of the screen, and only once you've stood still for two seconds (`HINT_DELAY` in `src/main.js`); moving or looking round puts it away. On a phone or tablet the two halves of the screen are labelled (**Walk** on the left, **Look around** on the right) until you've used both; after that, standing still brings up a one-line reminder instead.
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
 
 **Sound.** Everything you hear is made in code as you play (`src/audio.js`, Web Audio, no sound files): the fluorescent hum and the air conditioning, the street by the windows (with the odd passing car), in-store music through the ceiling speakers (quieter in the side rooms, and ducked while a tape plays in the lounge), footsteps on the carpet and the tiles by the door, and the door chime, tape clicks, the VCR loading a tape, the drop box, the receipt printer, tokens and prizes. It starts when you click Enter, goes quiet while the tab is hidden, and **Sound** (or `N`) turns it off, remembered on that browser.
 
-**The store front.** The store is open 24 hours: an LED **OPEN 24 HOURS** sign hangs in the window facing the street, so from inside it reads back to front. The sky outside follows your own clock (dawn, day, dusk and night). Tapes go back on their shelves on their own, but you can also drop one through the **RETURNS** box by the door (a token, five times a day). Take a tape to the register and you can rent it: the register prints a rental slip and the tape stays in your hands. Walk up to the counter empty-handed and the clerk asks for your membership card. Decorations go up by the calendar: Halloween in October, the winter holidays from 1 December to 6 January, and Valentine's from 1 to 14 February. `?time=day|dusk|dawn|night` and `?season=halloween|winter|valentine|none` in the address preview them.
+**The store front.** The store is open 24 hours: a neon **OPEN 24 HOURS** sign hangs in the window facing the street, so from inside it reads back to front (its 24 HOURS tube sputters now and then). Out of the window is the parking lot: two rows of striped stalls with wheel stops and a few parked cars, a planted island with the lot's lights, and beyond it a four-lane street with traffic both ways, then a strip mall and a gas station (`src/outside.js`). The sky outside follows your own clock (dawn, day, dusk and night): after dark the lamps, shop windows and headlights come on. Tapes go back on their shelves on their own, but you can also drop one through the **RETURNS** box by the door (a token, five times a day). Take a tape to the register and you can rent it: the register prints a rental slip and the tape stays in your hands. Walk up to the counter empty-handed and the clerk asks for your membership card. Decorations go up by the calendar: Halloween in October, the winter holidays from 1 December to 6 January, and Valentine's from 1 to 14 February. `?time=day|dusk|dawn|night` and `?season=halloween|winter|valentine|none` in the address preview them.
 
 **Membership card and tokens.** The token count in the top right (or `M`) opens your membership card: your member number, a stamp for each day you came in, your streak, your time in the lounge and your rental history (✓ for tapes watched to the end). You earn tokens for:
 
@@ -97,7 +102,7 @@ If the browser won't allow pointer lock (some embedded frames block it), the sto
 
 The card is kept in that browser (`localStorage`), so clearing browsing data resets it. The rules are in `src/membership.js` (`REWARDS`).
 
-**Tape links.** While you hold a tape, the address bar points at it (`?tape=<id>`), and **Copy link** gives a link to it (`…/t/<id>/`). Opening either one puts the visitor in front of that tape with it in their hands. The build writes the `t/` pages, one per tape (`scripts/tape-pages.mjs`), so chat apps and social sites show the tape's title and thumbnail when the link is pasted.
+**Tape links.** While a tape's in your hands (held, or carried round after **Grab**) the address bar is a link to it: `…/t/<id>/` on the live site, so just copy the address to share it. Opening it puts the visitor in front of that tape with it in their hands. The build writes the `t/` pages, one per tape (`scripts/tape-pages.mjs`), so chat apps and social sites show the tape's title and thumbnail when the link is pasted; each forwards to `?tape=<id>`, which works too (and is what the dev server shows, since it has no `t/` pages).
 
 ### PS1 Mode
 
@@ -116,7 +121,7 @@ Every capsule and jackpot fires a `bb:prize` browser event. The always-win rewar
 ### The rooms off the sales floor
 
 - **The lounge.** A hallway in the left wall, near the front (under the pink **LOUNGE** sign), leads to a living-room-style lounge: two couches facing a projector screen, with curtains, a popcorn machine and a floor lamp. There's a VCR in the cabinet under the screen, its clock blinking 12:00. Pick a tape up anywhere in the store, **Grab** it (it rides along at the bottom of your view), and walk up to the VCR: it asks for the tape. Put it in and the VCR starts it the old way, in about seven seconds: black, then the blue screen full of static while it auto-tracks, then the tape's title, the date it went up and its length, and a blip into the video. It keeps playing while you walk round (fainter as you go). Put another tape in and the first goes back on its shelf, as it does when the tape ends. With nothing in, a VHS logo bounces round the screen. You can sit on either couch (three seats each). Once a tape's playing, a little remote shows up while you're on the couch or standing at the VCR: back 5 seconds (what YouTube's ← key does), pause / play, and subtitles on or off (remembered on that browser). The VCR's display follows the tape's counter, and shows ❚❚ while it's paused.
-- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams: every stream from [moose2](https://www.youtube.com/moose2), shelved by the year it went up, newest year first. Within a year the tapes run in the order they were uploaded, so a playthrough's parts read left to right, Part One to Finale. A game streamed over several nights (or a show that ran for a few weeks, like Bingo98) is one **box set**, two tapes wide, with the game's name and a badge saying how many tapes are inside. Pick it up and you're holding Tape 1. **◀ ▶** in the panel (or the `←` `→` keys) swap it for the box's other tapes. The sets are worked out from the titles (`src/boxsets.js`): a run ends at a break of more than four months, or when the parts start again from Part 1, so a game played twice (Shenmue in 2018 and again in 2025) is two sets. Start on the gondola in the middle (this year and last), then go round the walls. The gondola's front end shows the latest stream. Pick up, flip and grab work the same as on the sales floor, and **Find a tape** has a **Streams** button.
+- **Streams.** Through the archway at the back of the lounge (under the **ON AIR** sign) is Streams: every stream from [moose2](https://www.youtube.com/moose2), shelved by the year it went up, newest year first. Within a year the tapes run in the order they were uploaded, so a playthrough's parts read left to right, Part One to Finale. A game streamed over several nights (or a show that ran for a few weeks, like Bingo98) is one **box set**, two tapes wide, with the game's name and a badge saying how many tapes are inside. Pick it up and you're holding Tape 1. **◀ ▶** in the panel (or the `←` `→` keys) swap it for the box's other tapes. The sets are worked out from the titles (`src/boxsets.js`): a run ends at a break of more than four months, or when the parts start again from Part 1, so a game played twice (Shenmue in 2018 and again in 2025) is two sets. Start on the gondola in the middle (this year and last), then go round the walls. The gondola's front end shows the latest stream. Pick up, turn over and grab work the same as on the sales floor, and **Find a tape** has a **Streams** button.
 - **Extras.** A door in the back right-hand corner, past New Releases, leads to the Extras back room.
 
 Extras has empty **Coming Soon** shelves (and a few boxes of stock) until its videos are chosen. See [docs/roadmap.md](docs/roadmap.md).
@@ -140,6 +145,7 @@ src/
   catalog-schema.js  the catalog.json contract (shared with the sync script)
   layout.js      floor-plan solver: store size, shelf runs, which tape goes where, the other rooms and every wall
   store.js       the sales floor: room, shelving, signs, checkout counter, entrance, lights
+  outside.js     the view out of the front window: parking lot, street and traffic, strip mall
   rooms.js       the rooms off it: hallway, lounge and Streams wing, Extras back room
   lounge.js      the lounge: couches, projector, screen (bouncing logo / blue PLAY / clear), the VCR
   fixtures.js    building blocks shared by both: batching, walls, floors, shelving, signs, posters
@@ -147,7 +153,7 @@ src/
   atlas.js       cover texture atlas
   covers.js      box art generator (front, back, spine) + thumbnail loading
   textures.js    carpet, ceiling tiles, signs, neon
-  inspect.js     the picked-up tape (fly-in animation, spin, flip) and the one you're carrying
+  inspect.js     the picked-up tape (fly-in animation, turning it over) and the one you're carrying
   ps1.js         PS1 Mode: low-res render, shader patches, sharp thumbnail pass
   controls.js    first-person movement, collision, touch joystick
   crt.js         the TV above the counter
@@ -173,7 +179,7 @@ test/
 npm run check
 ```
 
-This runs everything: lint, the catalog check, unit tests, a production build, and browser smoke tests that open the store headlessly (using the Edge or Chrome already installed) and pick up, flip, find and play a tape. It takes about 30 seconds. `npm run check:fast` skips the build and browser tests. GitHub runs the full check on every push.
+This runs everything: lint, the catalog check, unit tests, a production build, and browser smoke tests that open the store headlessly (using the Edge or Chrome already installed) and pick up, turn over, find and play a tape. It takes about 30 seconds. `npm run check:fast` skips the build and browser tests. GitHub runs the full check on every push.
 
 [CLAUDE.md](CLAUDE.md) explains how the code is organised for anyone, human or AI, working on it.
 

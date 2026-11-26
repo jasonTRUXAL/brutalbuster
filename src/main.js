@@ -167,13 +167,18 @@ async function main() {
   let heldSlot = -1; // the tape in your hands (inspect)
   let carried = null; // the tape you've grabbed and are carrying round: { slot, video }
   let inVcr = null; // the tape in the lounge's VCR: { slot, video }
+  let time = 0; // the simulation's clock (seconds)
+  let lastActive = -Infinity; // when you last moved, looked round or turned the tape (see trackActivity)
   const setMode = (m) => {
+    const was = mode;
     mode = m;
     ui.setMode(m);
-    if (m !== 'inspect' && m !== 'splash') tapeInAddress(null);
     controls.enabled = m === 'walk';
     inspector.showCarry = m !== 'play'; // (it would sit in front of the machine)
     if (m !== 'walk') setTarget(null);
+    // a new mode's hints wait for you to be still in it (but come straight up on the way in)
+    if (was !== 'splash') lastActive = time;
+    syncAddress();
   };
 
   const press = isTouch ? 'Tap' : 'Click';
@@ -261,7 +266,7 @@ async function main() {
   function showHeld(slot, swapped = false) {
     const s = plan.slots[slot];
     const video = s.video;
-    tapeInAddress(video.id);
+    syncAddress();
     const aisle = catalog.aisleById.get(video.aisle);
     ui.showInspect(video, aisle, {
       canGrab: Boolean(video.youtubeId),
@@ -328,6 +333,7 @@ async function main() {
     if (inVcr) tapes.show(inVcr.slot); // the tape that was in goes back on its shelf
     inVcr = carried;
     carried = null;
+    syncAddress();
     inspector.release();
     theater.insert(inVcr.video);
     member.rent(inVcr.video);
@@ -358,6 +364,7 @@ async function main() {
     const video = carried.video;
     tapes.show(carried.slot);
     carried = null;
+    syncAddress();
     inspector.release();
     setTarget(null);
     member.returned(video);
@@ -386,8 +393,9 @@ async function main() {
     ui.openDirectory();
   }
 
-  function closeDirectory() {
-    setMode(isTouch || controls.dragLook ? 'walk' : 'paused');
+  /** Close the directory, the card or the rental slip. A click or Q (a gesture) recaptures the mouse. */
+  function closeDirectory(viaGesture = false) {
+    resumeWalking(viaGesture);
   }
 
   /** The membership card (the token chip, or M). */
@@ -404,7 +412,7 @@ async function main() {
       .map((s, i) => ({ s, i }))
       .filter(({ s, i }) => s.video.id === id && !tapes.hiddenSet?.has(i));
     if (!slots.length) {
-      if (mode === 'directory') closeDirectory(); // (you're carrying it, or it's in the VCR)
+      if (mode === 'directory') closeDirectory(true); // (you're carrying it, or it's in the VCR)
       return;
     }
     const rank = ({ s }) => (s.section.kind === 'genre' ? 0 : s.section.kind === 'new' ? 1 : 2) * 10 + Math.abs(s.row - 3);
@@ -421,42 +429,29 @@ async function main() {
 
   // ------------------------------------------------------------ tape links
   // `?tape=<id>` (or a shared t/<id>/ page, which forwards here) puts you in front of
-  // that tape with it in your hands. While you hold a tape the address says which, so
-  // the address bar is always a link to what you're looking at.
+  // that tape with it in your hands. While a tape's in your hands (held, or carried
+  // round) the address bar is a link to it, to copy and share: on the live site it's the
+  // tape's t/<id>/ page, which chat apps preview with its title and thumbnail
+  // (scripts/tape-pages.mjs writes them). The dev server has no t/ pages: ?tape=<id>.
   const linkedId = params.get('tape');
   let pendingTape = linkedId && plan.slots.some((s) => s.video.id === linkedId) ? linkedId : null;
   if (pendingTape) ui.splashTape(plan.slots.find((s) => s.video.id === pendingTape).video);
+  const appBase = new URL('.', location.href); // (where the store lives, before the address changes)
+  const PAGE_ID = /^[\w-]{1,64}$/; // (the ids tape-pages.mjs writes a page for)
+  let addressId = linkedId;
 
-  function tapeInAddress(id) {
-    const url = new URL(location.href);
-    if ((url.searchParams.get('tape') ?? null) === id) return;
-    if (id) url.searchParams.set('tape', id);
-    else url.searchParams.delete('tape');
+  function syncAddress() {
+    if (mode === 'splash') return; // (a shared link stays put until you're in)
+    const id = mode === 'inspect' && heldSlot >= 0 ? plan.slots[heldSlot].video.id : carried ? carried.video.id : null;
+    if (id === addressId) return;
+    addressId = id;
+    const url = new URL(appBase);
+    url.search = location.search;
+    url.hash = location.hash;
+    url.searchParams.delete('tape');
+    if (id && !import.meta.env.DEV && PAGE_ID.test(id)) url.pathname += `t/${id}/`;
+    else if (id) url.searchParams.set('tape', id);
     history.replaceState(history.state, '', url);
-  }
-
-  /** The link to share: the tape's preview page on the live site (title + thumbnail in chat apps). */
-  function tapeLink(video) {
-    const id = encodeURIComponent(video.id);
-    // (the dev server has no t/ pages: those are written by the build, scripts/tape-pages.mjs)
-    return new URL(import.meta.env.DEV ? `?tape=${id}` : `t/${id}/`, new URL('.', location.href)).href;
-  }
-
-  async function shareTape() {
-    if (mode !== 'inspect' || heldSlot < 0) return;
-    const video = plan.slots[heldSlot].video;
-    const url = tapeLink(video);
-    try {
-      if (isTouch && navigator.share) {
-        await navigator.share({ title: video.title, text: `Found this at ${catalog.store.name} Video`, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      ui.shareDone('Link copied ✓');
-    } catch (err) {
-      if (err?.name === 'AbortError') return; // they closed the share sheet
-      ui.shareFallback(url); // (no clipboard access, e.g. an embedded browser): show it to copy by hand
-    }
   }
 
   // ------------------------------------------------------------ input wiring
@@ -475,7 +470,6 @@ async function main() {
     setMode('walk');
     controls.lock();
   });
-  ui.on('share', shareTape);
   ui.on('prevTape', () => swapTape(-1));
   ui.on('nextTape', () => swapTape(1));
   ui.on('resume', () => {
@@ -483,13 +477,16 @@ async function main() {
     else controls.lock();
   });
   ui.on('find', openDirectory);
-  ui.on('closeDirectory', closeDirectory);
-  ui.on('card', () => (mode === 'card' ? closeDirectory() : openCard()));
-  ui.on('closeCard', closeDirectory);
-  ui.on('closeReceipt', closeDirectory);
+  // (closed with a click: that's a gesture, so the mouse can be captured again straight away)
+  ui.on('closeDirectory', () => closeDirectory(true));
+  ui.on('card', () => (mode === 'card' ? closeDirectory(true) : openCard()));
+  ui.on('closeCard', () => closeDirectory(true));
+  ui.on('closeReceipt', () => closeDirectory(true));
   ui.on('back', () => putBack(true));
   ui.on('flip', () => inspector.flip());
+  ui.on('dragStart', () => inspector.dragStart());
   ui.on('drag', (dx, dy) => inspector.drag(dx, dy));
+  ui.on('dragEnd', () => inspector.dragEnd());
   ui.on('grab', () => grab(true));
   ui.on('stand', () => exitPlay(true));
   ui.on('standUp', () => standUp(true));
@@ -558,14 +555,20 @@ async function main() {
 
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement) {
-      if (e.key === 'Escape') closeDirectory();
+      if (e.key === 'Escape') closeDirectory(); // (the directory's search box)
       return;
     }
-    if (e.key === 'Escape') {
-      if (mode === 'inspect') putBack(false);
-      else if (mode === 'directory' || mode === 'card' || mode === 'receipt') closeDirectory();
-      else if (mode === 'play') exitPlay(false);
-      else if (mode === 'sit') standUp(false);
+    // Q backs out of whatever you're in: puts the tape back, closes the card or the slip,
+    // stands you up. Not Esc: on Esc the browser lets go of the mouse and won't let the
+    // store take it straight back ("Click to look around"). Esc still works, mouse-free.
+    const back = e.code === 'KeyQ' ? 'q' : e.key === 'Escape' ? 'esc' : null;
+    if (back) {
+      if (e.repeat) return;
+      const gesture = back === 'q'; // (a key press lets us recapture the mouse; Esc doesn't)
+      if (mode === 'inspect') putBack(gesture);
+      else if (mode === 'directory' || mode === 'card' || mode === 'receipt') closeDirectory(gesture);
+      else if (mode === 'play') exitPlay(gesture);
+      else if (mode === 'sit') standUp(gesture);
       return;
     }
     if (e.code === 'KeyP' && mode !== 'splash' && !e.repeat) {
@@ -595,7 +598,7 @@ async function main() {
     }
     if (mode === 'walk' && e.code === 'KeyE') activateHovered();
     else if ((mode === 'walk' || mode === 'paused' || mode === 'card') && e.code === 'KeyM' && !e.repeat) {
-      if (mode === 'card') closeDirectory();
+      if (mode === 'card') closeDirectory(true);
       else openCard();
     } else if ((mode === 'walk' || mode === 'paused') && (e.code === 'KeyF' || e.key === '/')) {
       e.preventDefault();
@@ -749,12 +752,37 @@ async function main() {
     ui.splashProgress(loaded, withThumbs.length);
   }).then(() => mapLimit(areaVideos.filter((v) => v.thumb), 8, thumbFor));
 
+  // ------------------------------------------------------------ still or on the move
+  // The hint bar (and a touchscreen's labelled halves) come up once you've been still for
+  // HINT_DELAY seconds: not walking, not looking round, not turning the tape over. Any
+  // of those puts them away again.
+  const HINT_DELAY = 2;
+  const LOOK_SPEED = 0.2; // rad/s: turning slower than this isn't looking round (a twitch of the mouse)
+  let lastYaw = controls.yaw;
+  let lastPitch = controls.pitch;
+  let touchLearned = false;
+  let wasCrouching = false;
+  function trackActivity(dt) {
+    const turned = Math.abs(controls.yaw - lastYaw) + Math.abs(controls.pitch - lastPitch);
+    lastYaw = controls.yaw;
+    lastPitch = controls.pitch;
+    const looking = dt > 0 && turned / dt > LOOK_SPEED;
+    const walking = Math.hypot(controls.vel.x, controls.vel.z) > 0.15;
+    if (walking || looking || controls.touching || inspector.dragging || controls.crouching !== wasCrouching) lastActive = time;
+    wasCrouching = controls.crouching;
+    ui.setStill(mode !== 'splash' && time - lastActive >= HINT_DELAY);
+    // a touchscreen's halves are labelled until you've walked and looked with them
+    if (isTouch && !touchLearned && controls.usedStick && controls.usedLook) {
+      touchLearned = true;
+      ui.setTouchLearned();
+    }
+  }
+
   // ------------------------------------------------------------ loop
   const timer = new THREE.Timer();
   timer.connect(document); // ignores time spent in a background tab
   let flushTimer = 0;
   let dayCheck = 0;
-  let time = 0;
   const spawn = plan.spawn;
   function tick(dt) {
     time += dt;
@@ -776,6 +804,7 @@ async function main() {
       }
     }
     updateRemote();
+    trackActivity(dt);
     // the store's sound: which room, the lounge's tape, the shop window, footsteps
     const here = camera.position;
     const room = roomAt(plan, here);
@@ -842,6 +871,7 @@ async function main() {
         if (carried) tapes.show(carried.slot);
         if (inVcr) tapes.show(inVcr.slot);
         carried = inVcr = null;
+        syncAddress();
         inspector.dropCarry();
         theater.eject();
       },

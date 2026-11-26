@@ -144,12 +144,14 @@ export class TapeShelves {
     let best = null;
     for (let i = 0; i < this.centers.length; i++) {
       if (this.boxed[i] || this.centers[i].distanceToSquared(ray.origin) > reach2 || this.hiddenSet?.has(i)) continue;
-      const hovered = i === this.hovered; // (slid forward: test where it's drawn)
-      const p = _ray.copy(ray).applyMatrix4(hovered ? this.hoverInverse : this.inverse[i]).intersectBox(CASE, _hit);
+      // The hovered tape is slid forward: it counts where it's drawn and where it was.
+      // Testing only the slid position made the very edge of a tape flicker on and off
+      // (hit, slide out, miss, slide back, hit...).
+      let p = castBox(ray, this.inverse[i], this.base[i], CASE);
+      if (i === this.hovered) p = nearer(ray, p, castBox(ray, this.hoverInverse, this.hoverMatrix, CASE));
       if (!p) continue;
-      p.applyMatrix4(hovered ? this.hoverMatrix : this.base[i]);
       const distance = p.distanceTo(ray.origin);
-      if (distance <= far && (!best || distance < best.distance)) best = { index: i, distance, point: p.clone() };
+      if (distance <= far && (!best || distance < best.distance)) best = { index: i, distance, point: p };
     }
     return best;
   }
@@ -301,13 +303,21 @@ export class BoxSetShelves {
     let best = null;
     for (let i = 0; i < this.centers.length; i++) {
       if (this.centers[i].distanceToSquared(ray.origin) > reach2) continue;
-      const hovered = i === this.hovered;
-      const p = _ray.copy(ray).applyMatrix4(hovered ? this.hoverInverse : this.inverse[i]).intersectBox(BOX_BOUNDS, _hit);
+      // (the hovered box counts in both places: see TapeShelves.hit)
+      let p = castBox(ray, this.inverse[i], this.base[i], BOX_BOUNDS);
+      if (i === this.hovered) p = nearer(ray, p, castBox(ray, this.hoverInverse, this.hoverMatrix, BOX_BOUNDS));
       if (!p) continue;
-      p.applyMatrix4(hovered ? this.hoverMatrix : this.base[i]);
       const distance = p.distanceTo(ray.origin);
-      if (distance <= far && (!best || distance < best.distance)) best = { index: i, distance, point: p.clone() };
+      if (distance <= far && (!best || distance < best.distance)) best = { index: i, distance, point: p };
     }
     return best;
   }
 }
+
+/** Where `ray` meets `box` placed by matrix `m` (`inv` its inverse), in world space, or null. */
+function castBox(ray, inv, m, box) {
+  const p = _ray.copy(ray).applyMatrix4(inv).intersectBox(box, _hit);
+  return p ? p.applyMatrix4(m).clone() : null;
+}
+
+const nearer = (ray, a, b) => (!a ? b : !b ? a : a.distanceToSquared(ray.origin) <= b.distanceToSquared(ray.origin) ? a : b);

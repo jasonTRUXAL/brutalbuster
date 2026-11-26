@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Runs after `vite build`. Writes a tiny page per tape, dist/t/<id>/index.html, so a
-// shared tape link (the held-tape panel's Copy link) previews in chat apps and social
-// sites with the tape's title and thumbnail. The page just forwards to ../../?tape=<id>,
-// which puts the visitor in front of that tape. Built from the catalogs in dist/ (the
+// shared tape link (the store's address bar, while a tape's in your hands) previews in
+// chat apps and social sites with the tape's title and thumbnail. The page just forwards
+// to ../../?tape=<id>, which puts the visitor in front of that tape. Built from the catalogs in dist/ (the
 // deploy restocks them before building, so the pages match what's on the shelves).
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { resolve, dirname, basename } from 'node:path';

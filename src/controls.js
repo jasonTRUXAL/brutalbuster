@@ -32,6 +32,11 @@ export class PlayerControls {
 
     this.failures = 0;
     this.dragDist = 0;
+    // touchscreen: fingers down now, and whether each half has been used yet (main.js
+    // labels the halves until both have)
+    this.touching = false;
+    this.usedStick = false;
+    this.usedLook = false;
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.dom;
       if (this.locked) this.failures = 0;
@@ -203,6 +208,7 @@ export class PlayerControls {
     let joyOrigin = null;
     const looks = new Map();
     const R = 56;
+    const busy = () => (this.touching = joyId !== null || looks.size > 0);
 
     const onStart = (e) => {
       if (!this.enabled) return;
@@ -219,6 +225,7 @@ export class PlayerControls {
           looks.set(t.identifier, { x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, t0: performance.now() });
         }
       }
+      busy();
       e.preventDefault();
     };
     const onMove = (e) => {
@@ -234,6 +241,7 @@ export class PlayerControls {
           }
           this.joy.x = dx / R;
           this.joy.y = -dy / R;
+          if (d > R * 0.35) this.usedStick = true;
           if (knob) knob.style.transform = `translate(${dx}px, ${dy}px)`;
         } else if (looks.has(t.identifier)) {
           const l = looks.get(t.identifier);
@@ -241,6 +249,7 @@ export class PlayerControls {
           this.pitch = clamp(this.pitch - (t.clientY - l.y) * 0.0055, -PITCH_LIMIT, PITCH_LIMIT);
           l.x = t.clientX;
           l.y = t.clientY;
+          if (Math.hypot(t.clientX - l.sx, t.clientY - l.sy) > 24) this.usedLook = true;
         }
       }
       e.preventDefault();
@@ -259,6 +268,7 @@ export class PlayerControls {
           if (moved < 12 && performance.now() - l.t0 < 350) this.onTap(t.clientX, t.clientY);
         }
       }
+      busy();
     };
     this.dom.addEventListener('touchstart', onStart, { passive: false });
     this.dom.addEventListener('touchmove', onMove, { passive: false });

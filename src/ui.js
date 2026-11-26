@@ -1,4 +1,4 @@
-// DOM overlays: splash, HUD tooltip, held-tape panel, the couch's Stand up, store directory.
+// DOM overlays: splash, HUD, the hint bar, held-tape panel, the couch's Stand up, store directory.
 import { escapeHtml, makeCanvas } from './util.js';
 import { shelfName } from './catalog.js';
 import { mountGamePanel } from './arcade-ui.js';
@@ -18,7 +18,9 @@ export class UI {
     this.receipt = $('#receipt');
     this.toasts = $('#toasts');
     this.play = $('#play');
-    this.tooltip = $('#tooltip');
+    this.hints = $('#hints');
+    this.mode = 'splash';
+    this.target = null; // what the hint bar says you're aiming at
     this.crosshair = $('#crosshair');
     this.canvas = $('#scene');
     this.handlers = {};
@@ -67,12 +69,13 @@ export class UI {
       if (e.target.closest('[data-act="close"]') || e.target === this.directory) this.handlers.closeDirectory?.();
     });
 
-    // drag to turn the held box
+    // drag to turn the held box (a quick click or tap flips it round)
     const drag = $('.inspect-drag');
     let last = null;
     drag.addEventListener('pointerdown', (e) => {
       last = { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY };
       drag.setPointerCapture(e.pointerId);
+      this.handlers.dragStart?.();
     });
     drag.addEventListener('pointermove', (e) => {
       if (!last) return;
@@ -80,10 +83,15 @@ export class UI {
       last.x = e.clientX;
       last.y = e.clientY;
     });
-    drag.addEventListener('pointerup', (e) => {
-      if (last && Math.hypot(e.clientX - last.sx, e.clientY - last.sy) < 5) this.handlers.flip?.();
+    const release = (e) => {
+      if (!last) return;
+      const tap = e.type === 'pointerup' && Math.hypot(e.clientX - last.sx, e.clientY - last.sy) < 5;
       last = null;
-    });
+      this.handlers.dragEnd?.();
+      if (tap) this.handlers.flip?.();
+    };
+    drag.addEventListener('pointerup', release);
+    drag.addEventListener('pointercancel', release);
   }
 
   on(name, fn) {
@@ -124,28 +132,6 @@ export class UI {
     $('#btn-enter').textContent = 'Enter and find it ▶';
   }
 
-  /** The held-tape panel's Copy link: show that it worked (or what to copy by hand). */
-  shareDone(text) {
-    const b = $('.ip-share');
-    b.textContent = text;
-    b.classList.add('done');
-    clearTimeout(this.shareTimer);
-    this.shareTimer = setTimeout(() => {
-      b.textContent = 'Copy link';
-      b.classList.remove('done');
-    }, 2200);
-  }
-
-  /** Couldn't reach the clipboard: put the link in the panel's note, selected. */
-  shareFallback(url) {
-    const n = $('.ip-note');
-    n.hidden = false;
-    n.innerHTML = `Copy this link: <input class="ip-link" readonly value="${escapeHtml(url)}">`;
-    const input = $('.ip-link', n);
-    input.focus();
-    input.select();
-  }
-
   splashReady() {
     const b = $('#btn-enter');
     b.disabled = false;
@@ -153,6 +139,8 @@ export class UI {
   }
 
   setMode(mode) {
+    this.mode = mode;
+    document.body.dataset.mode = mode;
     const inStore = mode !== 'splash';
     this.splash.hidden = mode !== 'splash';
     this.hud.hidden = !inStore || mode === 'inspect' || mode === 'play' || mode === 'sit';
@@ -167,6 +155,32 @@ export class UI {
     this.receipt.hidden = mode !== 'receipt';
     this.canvas.classList.toggle('blurred', mode === 'splash' || mode === 'directory' || mode === 'card' || mode === 'receipt');
     if (mode !== 'walk') this.hover(null);
+    this._refreshHints();
+  }
+
+  /**
+   * Still for a couple of seconds (main.js decides): the hint bar fades in, and on a
+   * touchscreen the labelled halves. Moving fades them out again.
+   */
+  setStill(still) {
+    if (still === this.still) return;
+    this.still = still;
+    document.body.classList.toggle('still', still);
+  }
+
+  /** Both halves of the touchscreen have been used: from now on the hint bar's line will do. */
+  setTouchLearned() {
+    document.body.classList.add('touch-learned');
+    this._refreshHints();
+  }
+
+  /** What the hint bar shows: what you're aiming at, else the mode's own hint (if any). */
+  _refreshHints() {
+    const touch = document.body.classList.contains('touch');
+    let show = '';
+    if (this.mode === 'walk') show = this.target ? 'target' : !touch || document.body.classList.contains('touch-learned') ? 'walk' : '';
+    else if (this.mode === 'inspect') show = 'inspect';
+    this.hints.dataset.show = show;
   }
 
   /** The VCR's remote: `state` is { paused, subtitles, title }, or false to hide it. */
@@ -217,17 +231,16 @@ export class UI {
     this.playRefresh = null;
   }
 
+  /** What the crosshair is on ({ aisle, title, hint }), or null: the hint bar says. */
   hover(info) {
-    if (!info) {
-      this.tooltip.hidden = true;
-      this.crosshair.classList.remove('on');
-      return;
+    this.target = info;
+    this.crosshair.classList.toggle('on', Boolean(info));
+    if (info) {
+      $('.ht-aisle', this.hints).textContent = info.aisle.toUpperCase();
+      $('.ht-title', this.hints).textContent = info.title;
+      $('.ht-act', this.hints).textContent = info.hint;
     }
-    this.tooltip.hidden = false;
-    this.crosshair.classList.add('on');
-    $('.tt-aisle', this.tooltip).textContent = info.aisle.toUpperCase();
-    $('.tt-title', this.tooltip).textContent = info.title;
-    $('.tt-hint', this.tooltip).textContent = info.hint;
+    this._refreshHints();
   }
 
   /**
@@ -258,9 +271,6 @@ export class UI {
     const yt = $('.ip-yt');
     yt.hidden = !video.youtubeId;
     if (video.youtubeId) yt.href = `https://www.youtube.com/watch?v=${encodeURIComponent(video.youtubeId)}`;
-    clearTimeout(this.shareTimer);
-    $('.ip-share', p).textContent = 'Copy link';
-    $('.ip-share', p).classList.remove('done');
     const n = $('.ip-note');
     n.hidden = !note;
     n.textContent = note || '';

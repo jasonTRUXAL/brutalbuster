@@ -1,10 +1,11 @@
 // Builds the static store: room shell, shelving, signage, checkout, entrance and lights.
-// The rooms off the sales floor (hallway, lounge, Streams, Extras) come from rooms.js.
+// The rooms off the sales floor (hallway, lounge, Streams, Extras) come from rooms.js, and
+// the view out of the front window (parking lot, street, traffic) from outside.js.
 import * as THREE from 'three';
 import { DIM, BRAND } from './config.js';
 import {
-  carpetTexture, vctTexture, ceilingTexture, pegboardTexture, wallTexture, asphaltTexture, nightSkyTexture,
-  aisleSignTexture, neonTexture, panelTexture, toTexture, ledSignTexture,
+  carpetTexture, vctTexture, ceilingTexture, pegboardTexture, wallTexture,
+  aisleSignTexture, neonTexture, panelTexture, toTexture, neonSignTexture,
 } from './textures.js';
 import { coverCanvas, coverData } from './covers.js';
 import { FONT } from './fonts.js';
@@ -14,6 +15,7 @@ import { buildPrizeCorner } from './prizes.js';
 import { Batcher, tiledPlane, signPlane, batchWall, flatGeometry, buildGondolaShell, buildFace, addPoster } from './fixtures.js';
 import { buildAnnex } from './rooms.js';
 import { buildSeason } from './seasons.js';
+import { buildOutside } from './outside.js';
 
 // ------------------------------------------------------------- store
 
@@ -88,7 +90,9 @@ export function buildStore(scene, plan, catalog, { season = null, phase = 'night
   // ---- walls, with the openings to the hallway and the Extras room
   for (const w of plan.walls) if (w.room === 'main') batchWall(B, mat.wall, w);
 
-  const outside = buildFrontWall(root, B, mat, plan);
+  buildFrontWall(root, B, mat, plan);
+  const outside = buildOutside(root, plan);
+  animated.push(outside); // (the traffic)
 
   // ---- shelving
   for (const g of gondolas) buildGondolaShell(B, mat, g);
@@ -169,7 +173,7 @@ export function buildStore(scene, plan, catalog, { season = null, phase = 'night
   };
 }
 
-// ------------------------------------------------------------- front wall + outside
+// ------------------------------------------------------------- front wall
 
 function buildFrontWall(root, B, mat, plan) {
   const { W, D, door } = plan;
@@ -220,57 +224,6 @@ function buildFrontWall(root, B, mat, plan) {
   mt.rotation.x = -Math.PI / 2;
   mt.position.set(door.x, 0.004, z - 0.7);
   root.add(mt);
-
-  // outside: parking lot + skyline backdrop
-  const asphalt = asphaltTexture();
-  asphalt.wrapS = asphalt.wrapT = THREE.RepeatWrapping;
-  asphalt.repeat.set(40, 12);
-  const lotMat = new THREE.MeshStandardMaterial({ map: asphalt, roughness: 1, color: 0x8888aa, emissiveMap: asphalt, emissive: 0x000000 });
-  const lot = new THREE.Mesh(tiledPlane(120, 34, 3), lotMat);
-  lot.rotation.x = -Math.PI / 2;
-  lot.position.set(0, -0.01, z + 17.2);
-  root.add(lot);
-  const curb = new THREE.Mesh(new THREE.PlaneGeometry(W + 6, 2.2), new THREE.MeshStandardMaterial({ color: 0x55565f, roughness: 1 }));
-  curb.rotation.x = -Math.PI / 2;
-  curb.position.set(0, 0.0, z + 1.2);
-  root.add(curb);
-  for (let i = -8; i <= 8; i++) B.box(mat.counterTop, i * 2.8, 0.002, z + 6.5, 0.1, 0.004, 4.5);
-  const skyMat = new THREE.MeshBasicMaterial({ map: nightSkyTexture(), fog: false });
-  const sky = new THREE.Mesh(tiledPlane(140, 46, 6), skyMat);
-  sky.position.set(0, 14, z + 34);
-  sky.rotation.y = Math.PI;
-  root.add(sky);
-  // street lamps
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffd28a, toneMapped: false });
-  for (const x of [-10, 10]) {
-    B.box(mat.frame, x, 3, z + 9, 0.14, 6, 0.14);
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), glowMat);
-    glow.position.set(x, 6, z + 9);
-    root.add(glow);
-  }
-
-  // The time of day, from the visitor's clock: the sky, how lit the lot is, and whether
-  // the street lamps are on. (Inside, the store's lights are the same at any hour.)
-  const skies = new Map([['night', skyMat.map]]);
-  const LOT = {
-    dawn: { color: 0x9a90b0, emissive: 0x2a2430, lamps: 0xffd28a },
-    day: { color: 0xc8c8d4, emissive: 0x6a6a72, lamps: 0x55524c },
-    dusk: { color: 0x9a8aa8, emissive: 0x221a28, lamps: 0xffd28a },
-    night: { color: 0x8888aa, emissive: 0x000000, lamps: 0xffd28a },
-  };
-  const outside = {
-    phase: null,
-    setPhase(phase) {
-      if (!LOT[phase] || phase === outside.phase) return;
-      outside.phase = phase;
-      if (!skies.has(phase)) skies.set(phase, nightSkyTexture(phase));
-      skyMat.map = skies.get(phase);
-      lotMat.color.setHex(LOT[phase].color);
-      lotMat.emissive.setHex(LOT[phase].emissive);
-      glowMat.color.setHex(LOT[phase].lamps);
-    },
-  };
-  return outside;
 }
 
 function doormatCanvas() {
@@ -394,22 +347,25 @@ function buildEntrance(root, B, mat, plan, catalog, colliders, trackArt, animate
   colliders.push({ minX: rx - 0.32, maxX: rx + 0.32, minZ: z - 0.72, maxZ: z });
   const dropBox = { x: rx, z: z - 0.705 };
 
-  // An LED OPEN 24 HOURS sign hanging in the window. It faces the street, so from inside
-  // it reads back to front. Its border chases round (two frames, swapped).
-  const frames = [0, 1].map((frame) => ledSignTexture(['OPEN', '24 HOURS'], { frame, mirror: true }));
+  // A neon OPEN 24 HOURS sign hanging in the window. It faces the street, so from inside
+  // it reads back to front. It hums (a slight waver in its brightness), and every few
+  // seconds the 24 HOURS tube sputters, the way an old one does.
+  const lines = ['OPEN', '24 HOURS'];
+  const lit = neonSignTexture(lines, { mirror: true });
+  const sputter = neonSignTexture(lines, { mirror: true, lit: { bottom: false } });
   const oh = 0.46;
   const ow = oh * 2.4;
   const ox = Math.min(door.x + door.width / 2 + 1.3, W / 2 - 1);
-  const openSign = signPlane(frames[0], ow, oh, ox, 1.95, z - 0.02, Math.PI, { additive: true });
+  const openSign = signPlane(lit, ow, oh, ox, 1.95, z - 0.02, Math.PI, { additive: true });
   root.add(openSign);
   for (const dx of [-ow * 0.4, ow * 0.4]) B.box(mat.chrome, ox + dx, (1.95 + oh / 2 + 2.6) / 2, z - 0.02, 0.004, 2.6 - 1.95 - oh / 2, 0.004);
-  let chase = 0;
+  const OFF = [[6.0, 6.07], [6.16, 6.21], [6.3, 6.36], [6.5, 6.53]]; // (seconds into each 9 s)
   animated.push({
     update(dt, t) {
-      const f = Math.floor(t / 0.45) % 2;
-      if (f === chase) return;
-      chase = f;
-      openSign.material.map = frames[f];
+      const s = t % 9;
+      const map = OFF.some(([a, b]) => s >= a && s < b) ? sputter : lit;
+      if (openSign.material.map !== map) openSign.material.map = map;
+      openSign.material.color.setScalar(0.93 + 0.05 * Math.sin(t * 7.3) + 0.02 * Math.sin(t * 31));
     },
   });
 

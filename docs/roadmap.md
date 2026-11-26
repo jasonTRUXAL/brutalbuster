@@ -42,9 +42,21 @@ The user's picks from the ideas list:
 
 - **Drop box:** carry a tape to the RETURNS box by the door and drop it in (1 token, five a day). Tapes still go back on their own.
 - **Checkout counter:** take a tape to the register to rent it: a printed rental slip (due back in 2 nights, no late fees), the register's screen shows it, and it goes on the card's rental history. Empty-handed, the counter opens your membership card.
-- **OPEN 24 HOURS:** an LED sign facing the street, so it's backwards from inside (the user's idea). It replaced the OPEN neon. No closing time anywhere.
+- **OPEN 24 HOURS:** an LED sign facing the street, so it's backwards from inside (the user's idea). It replaced the OPEN neon. No closing time anywhere. (Made neon on 2026-11-26: see HUD and polish.)
 - **Time of day:** the sky, the lot and the street lamps follow the visitor's clock (dawn 5–7, day 7–17, dusk 17–20, night).
 - **Seasons:** Halloween (Oct), winter holidays (1 Dec–6 Jan), Valentine's (1–14 Feb). The floor by the front is full (Lucky Hit, drop box, gates, gacha row), so the props go on the counter, the drop box and the window.
+
+## HUD and polish (built 2026-11-26, branch `feature/hud-and-polish`)
+
+The user's list, after the site had picked up "an over-abundance of information":
+
+- **Hints:** one bar at the bottom of the screen holds what you're aiming at (it was a tooltip under the crosshair) and the keys (a long always-on line). It shows only once you've been still for 2 seconds; moving, looking round or turning the tape hides it. The held-tape view's hint is "Drag the box to turn it over".
+- **Touchscreens:** the two halves are labelled (Walk / Look around) until both have been used; after that, the hint bar's one line.
+- **Q, not Esc,** backs out (put back, stand up, close the card or slip). Esc makes the browser drop the mouse and refuse to give it straight back. Esc still works as a fallback.
+- **Held-tape panel:** Copy link and Flip box are gone. The address bar is the link (now also while carrying a tape, and the live site shows `t/<id>/`, the preview page). Turning the box is a trackball drag with a little glide, and the box is about 1.6× bigger; the carried tape about 3×, half below the screen.
+- **Fixes:** shelf ends flickered yellow over blue (the price-channel lip's ends shared a plane with the end upright); a tape's edge flickered between hovered and not (the aim test only tried the slid-out position).
+- **OPEN 24 HOURS** is neon now (tubes with a hot core and glow; the 24 HOURS tube sputters), not LED dots.
+- **Outside** (`src/outside.js`): a proper lot (stalls, wheel stops, island, lot lights, parked cars), a four-lane street with traffic both ways, and a strip mall and a gas station across it.
 
 ## Sound (built 2026-11-23, branch `feature/ambient-sound`)
 

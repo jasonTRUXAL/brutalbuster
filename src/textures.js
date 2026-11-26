@@ -264,56 +264,63 @@ export function skyCanvas(phase = 'night') {
 }
 
 /**
- * An LED "OPEN" sign: rows of lit dots on clear acrylic (transparent, for additive
- * blending), with a chasing border. `frame` (0 or 1) moves the chase along a dot.
- * `mirror` draws it back to front: it faces the street, so inside you see it reversed.
+ * A neon "OPEN 24 HOURS" window sign: bent glass tubes on a transparent background (for
+ * additive blending). Each tube is drawn as a soft halo, the coloured glass and a
+ * near-white hot core; an unlit tube is just faint coloured glass. `lit` says which
+ * tubes are on ({ top, bottom, border }), for the flicker. `mirror` draws it back to
+ * front: it faces the street, so inside you see it reversed.
  */
-export function ledSignTexture(lines, { color = '#ff2d4a', accent = '#2ee6ff', frame = 0, mirror = false, w = 768, h = 320 } = {}) {
-  // the lettering, drawn plainly and then sampled into dots
-  const mask = makeCanvas(w, h);
-  const m = mask.getContext('2d');
-  m.fillStyle = '#fff';
-  m.textAlign = 'center';
-  m.textBaseline = 'middle';
-  const sizes = [h * 0.46, h * 0.22];
-  const ys = [h * 0.4, h * 0.78];
-  lines.forEach((line, i) => {
-    m.font = `${sizes[i] || sizes[1]}px ${FONT.bungee}`;
-    m.fillText(line, w / 2, ys[i] || ys[1], w * 0.86);
-  });
-  const data = m.getImageData(0, 0, w, h).data;
+export function neonSignTexture(lines, { lit = {}, mirror = false, w = 1056, h = 440 } = {}) {
   const c = makeCanvas(w, h);
   const ctx = c.getContext('2d');
   if (mirror) {
     ctx.translate(w, 0);
     ctx.scale(-1, 1);
   }
-  const pitch = 8;
-  const dot = (x, y, col, rad = pitch * 0.46) => {
-    ctx.fillStyle = col;
-    ctx.shadowColor = col;
-    ctx.shadowBlur = pitch * 0.9;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // `stroke()` strokes the tube's shape with whatever style is set
+  const tube = (stroke, color, width, on) => {
+    const pass = (style, lineWidth, blur, alpha) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = style;
+      ctx.lineWidth = lineWidth;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = blur;
+      stroke();
+      ctx.restore();
+    };
+    if (!on) return pass(color, width * 0.8, 0, 0.16); // (cold glass)
+    pass(color, width * 2.2, width * 6, 0.35); // the halo on the air round it
+    pass(color, width, width * 2, 1); // the glass
+    pass(mixHex(color, '#ffffff', 0.7), width * 0.38, width * 0.8, 0.95); // the hot core
+  };
+  const words = (str, font, size, y) => () => {
+    ctx.font = `${size}px ${font}`;
+    ctx.strokeText(str, w / 2, y, w * 0.78);
+  };
+  const pad = 46;
+  const border = () => {
     ctx.beginPath();
-    ctx.arc(x, y, rad, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.roundRect(pad, pad, w - pad * 2, h - pad * 2, 70);
+    ctx.stroke();
   };
-  for (let y = pitch; y < h - pitch; y += pitch) {
-    for (let x = pitch; x < w - pitch; x += pitch) {
-      if (data[(Math.round(y) * w + Math.round(x)) * 4 + 3] > 100) dot(x, y, y < h * 0.6 ? color : accent);
-    }
-  }
-  // the border: every other dot lit, stepping along each frame
-  let k = 0;
-  const edge = (x, y) => {
-    if ((k++ + frame) % 2 === 0) dot(x, y, '#ffc61a', pitch * 0.3);
-  };
-  for (let x = 4; x < w - 4; x += pitch) edge(x, 4);
-  for (let y = 4; y < h - 4; y += pitch) edge(w - 4, y);
-  for (let x = w - 4; x > 4; x -= pitch) edge(x, h - 4);
-  for (let y = h - 4; y > 4; y -= pitch) edge(4, y);
+  tube(border, '#2e7bff', 9, lit.border ?? true);
+  tube(words(lines[0], FONT.righteous, h * 0.4, h * 0.42), '#ff2443', 7.5, lit.top ?? true);
+  if (lines[1]) tube(words(lines[1], FONT.bungee, h * 0.155, h * 0.75), '#ffc61a', 5.5, lit.bottom ?? true);
   return toTexture(c);
 }
 
+/** Blend two #rrggbb colours: t = 0 is a, 1 is b. */
+function mixHex(a, b, t) {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  const m = (p, q) => Math.round(p + (q - p) * t);
+  return `rgb(${m(x.r, y.r)},${m(x.g, y.g)},${m(x.b, y.b)})`;
+}
 // ----------------------------------------------------------- signage
 
 function contrastText(hex) {
