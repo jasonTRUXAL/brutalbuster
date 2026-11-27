@@ -258,7 +258,12 @@ test('PS1 mode: a blocky world, a held tape, and back to normal', async ({ store
       for (let i = 1; i < n; i++) if (px[i * 4] === px[i * 4 - 4] && px[i * 4 + 1] === px[i * 4 - 3] && px[i * 4 + 2] === px[i * 4 - 2]) same++;
       return { same: same / (n - 1), glError: gl.getError() };
     });
-  const toggle = () => (isPhone(testInfo) ? page.locator('#btn-ps1').tap() : page.keyboard.press('p'));
+  // (on a phone the button's in the hint bar, which shows once you've been still a moment)
+  const toggle = async () => {
+    if (!isPhone(testInfo)) return page.keyboard.press('p');
+    await advance(page, 2.2);
+    return page.locator('#btn-ps1').tap();
+  };
   await page.evaluate(() => {
     const bb = window.__bb;
     bb.setMode('walk');
@@ -369,7 +374,12 @@ test('the hint bar: at the bottom, once you have been still for two seconds', as
   expect(late.title).toBe(await page.evaluate((i) => window.__bb.plan.slots[i].video.title, slot));
   await expect(page.locator('#hints')).toHaveCSS('opacity', '1');
   const box = await page.locator('#hints .hint-target').boundingBox();
-  expect(box.y, 'the hint bar is at the bottom of the screen').toBeGreaterThan(page.viewportSize().height * 0.8);
+  expect(box.y, 'the hint bar is at the bottom of the screen').toBeGreaterThan(page.viewportSize().height * 0.75);
+  // the store's buttons are in it too, under the hint; nothing's left up top but the name
+  for (const id of ['#btn-find', '#btn-card', '#btn-sound', '#btn-ps1']) {
+    expect((await page.locator(id).boundingBox()).y, `${id} at the bottom`).toBeGreaterThan(box.y);
+  }
+  await expect(page.locator('.hud-top button')).toHaveCount(0);
 
   // walking off puts it away at once
   await page.evaluate(() => window.__bb.controls.keys.add('KeyS'));
@@ -385,6 +395,51 @@ test('the hint bar: at the bottom, once you have been still for two seconds', as
   expect(await state()).toMatchObject({ still: true, show: 'walk' });
   await expect(page.locator('#hints .hint-keys.desktop-only')).toContainText('crouch');
   await expect(page.locator('#hints .hint-keys.desktop-only')).not.toContainText('Esc');
+  // and while you're on the move, the buttons can't be clicked (they're hidden)
+  await page.evaluate(() => window.__bb.controls.keys.add('KeyW'));
+  await advance(page, 0.2);
+  await page.evaluate(() => window.__bb.controls.keys.delete('KeyW'));
+  await expect(page.locator('#btn-find')).toBeHidden();
+});
+
+test('the door chime rings when you come up to the front door', async ({ store: page }) => {
+  const rang = await page.evaluate(() => {
+    const bb = window.__bb;
+    const heard = [];
+    const play = bb.audio.play;
+    bb.audio.play = (name) => heard.push(name);
+    const { door, D } = bb.plan;
+    bb.setMode('walk');
+    bb.controls.teleport(door.x, D / 2 - 4, 0, 0); // well into the store
+    bb.advance(0.1);
+    const away = heard.filter((n) => n === 'chime').length;
+    bb.controls.teleport(door.x, D / 2 - 0.6, Math.PI, 0); // at the door
+    bb.advance(0.1);
+    bb.controls.teleport(door.x + 0.3, D / 2 - 0.7, Math.PI, 0); // (still there: once is enough)
+    bb.advance(0.1);
+    const atDoor = heard.filter((n) => n === 'chime').length;
+    bb.controls.teleport(door.x, D / 2 - 4, 0, 0);
+    bb.advance(0.1);
+    bb.controls.teleport(door.x, D / 2 - 0.6, Math.PI, 0); // and back again
+    bb.advance(0.1);
+    const again = heard.filter((n) => n === 'chime').length;
+    bb.audio.play = play;
+    bb.controls.teleport(bb.plan.spawn.x, bb.plan.spawn.z, bb.plan.spawn.yaw, -0.04);
+    return { away, atDoor, again };
+  });
+  expect(rang).toEqual({ away: 0, atDoor: 1, again: 2 });
+});
+
+test('the debug overlay: ` shows frame times, memory and the load timeline', async ({ store: page }, testInfo) => {
+  test.skip(isPhone(testInfo), 'a keyboard key (?debug in the address on a phone)');
+  await expect(page.locator('#debug')).toBeHidden();
+  await page.keyboard.press('Backquote');
+  await expect(page.locator('#debug')).toBeVisible();
+  for (const text of ['FPS', 'CPU', 'Draw calls', 'GPU memory', 'Downloaded', 'Loading', 'ready to enter', 'store built']) {
+    await expect(page.locator('#debug')).toContainText(text);
+  }
+  await page.keyboard.press('Backquote');
+  await expect(page.locator('#debug')).toBeHidden();
 });
 
 test('aiming at the very edge of a tape keeps it highlighted (no flicker)', async ({ store: page }) => {
@@ -762,8 +817,12 @@ test('crouching: hold C (a toggle on a touchscreen)', async ({ store: page }, te
   });
   const eye = () => page.evaluate(() => window.__bb.camera.position.y);
   expect(await eye()).toBeCloseTo(1.62, 2);
-  if (isPhone(testInfo)) await page.locator('#btn-crouch').tap();
-  else await page.keyboard.down('KeyC');
+  // (on a phone, Crouch is in the hint bar: still for a moment, it shows; and tapping it
+  // doesn't count as moving, so it stays up to tap again)
+  if (isPhone(testInfo)) {
+    await advance(page, 2.2);
+    await page.locator('#btn-crouch').tap();
+  } else await page.keyboard.down('KeyC');
   await advance(page, 1);
   expect(await eye()).toBeCloseTo(1.02, 2);
   if (isPhone(testInfo)) await page.locator('#btn-crouch').tap();

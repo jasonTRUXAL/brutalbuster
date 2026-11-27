@@ -74,7 +74,7 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 | The VCR's remote (on the couch, or at the VCR, once a tape's playing) | `R` back 5 seconds (`←` too on the couch), `Space` pause / play, `T` subtitles, or its buttons | its buttons |
 | Crouch | hold `C` | **Crouch** (tap again to stand) |
 | Find a title | `F` | **Find a tape** |
-| Your membership card | `M`, or the token count (top right) | the token count |
+| Your membership card | `M`, or the token count (in the bar at the bottom) | the token count |
 | Play a prize-corner machine | aim at it and click (or `E`) | tap it |
 | Turn the gacha crank | `Space`, or **Turn the crank** | **Turn the crank** |
 | Lucky Hit: aim, then drop | aim with the mouse or `←` `→`; `Space` or click to drop | drag the **Drop spot** slider; tap **Drop** |
@@ -85,15 +85,17 @@ The store name, subtitle and tagline are under `store` in `store.config.json`. T
 
 `Q` backs out of things rather than `Esc`: on `Esc` the browser lets go of the mouse and won't let the store take it straight back, so you'd have to click to look around again. `Esc` still works (it just leaves the mouse free), and it closes the store directory, whose search box has the keyboard.
 
-**Hints stay out of the way.** What you're aiming at, and the keys, show in one bar at the bottom of the screen, and only once you've stood still for two seconds (`HINT_DELAY` in `src/main.js`); moving or looking round puts it away. On a phone or tablet the two halves of the screen are labelled (**Walk** on the left, **Look around** on the right) until you've used both; after that, standing still brings up a one-line reminder instead.
+**Hints stay out of the way.** Apart from the store's name in the corner, everything is in one bar at the bottom of the screen: what you're aiming at, the keys, and the buttons (**Find a tape**, your tokens, **Sound**, **PS1 mode**, and **Crouch** on a touchscreen). It shows only once you've stood still for two seconds (`HINT_DELAY` in `src/main.js`); moving or looking round puts it away. On a phone or tablet the two halves of the screen are labelled (**Walk** on the left, **Look around** on the right) until you've used both; after that, standing still brings up a one-line reminder instead.
+
+**The debug overlay.** `` ` `` (the key left of 1), or `?debug` in the address, shows how the store is running on that machine: frames per second and frame times, how long the store's own code takes a frame (CPU) and the GPU (where the browser can time it), draw calls and triangles, memory (the JS heap, and roughly what's on the graphics card), the screen and graphics card, what's been downloaded, and how long each step of loading took. It's in the live site too (`src/debug.js`).
 
 If the browser won't allow pointer lock (some embedded frames block it), the store switches to drag-to-look automatically.
 
-**Sound.** Everything you hear is made in code as you play (`src/audio.js`, Web Audio, no sound files): the fluorescent hum and the air conditioning, the street by the windows (with the odd passing car), in-store music through the ceiling speakers (quieter in the side rooms, and ducked while a tape plays in the lounge), footsteps on the carpet and the tiles by the door, and the door chime, tape clicks, the VCR loading a tape, the drop box, the receipt printer, tokens and prizes. It starts when you click Enter, goes quiet while the tab is hidden, and **Sound** (or `N`) turns it off, remembered on that browser.
+**Sound.** Everything you hear is made in code as you play (`src/audio.js`, Web Audio, no sound files): the fluorescent hum and the air conditioning, the street by the windows (with the odd passing car), in-store music through the ceiling speakers (quieter in the side rooms, and ducked while a tape plays in the lounge), footsteps on the carpet and the tiles by the door, and the door chime (when you walk in, and whenever you come back up to the door), tape clicks, the VCR loading a tape, the drop box, the receipt printer, tokens and prizes. It starts when you click Enter, goes quiet while the tab is hidden, and **Sound** (or `N`) turns it off, remembered on that browser.
 
 **The store front.** The store is open 24 hours: a neon **OPEN 24 HOURS** sign hangs in the window facing the street, so from inside it reads back to front (its 24 HOURS tube sputters now and then). Out of the window is the parking lot: two rows of striped stalls with wheel stops and a few parked cars, a planted island with the lot's lights, and beyond it a four-lane street with traffic both ways, then a strip mall and a gas station (`src/outside.js`). The sky outside follows your own clock (dawn, day, dusk and night): after dark the lamps, shop windows and headlights come on. Tapes go back on their shelves on their own, but you can also drop one through the **RETURNS** box by the door (a token, five times a day). Take a tape to the register and you can rent it: the register prints a rental slip and the tape stays in your hands. Walk up to the counter empty-handed and the clerk asks for your membership card. Decorations go up by the calendar: Halloween in October, the winter holidays from 1 December to 6 January, and Valentine's from 1 to 14 February. `?time=day|dusk|dawn|night` and `?season=halloween|winter|valentine|none` in the address preview them.
 
-**Membership card and tokens.** The token count in the top right (or `M`) opens your membership card: your member number, a stamp for each day you came in, your streak, your time in the lounge and your rental history (✓ for tapes watched to the end). You earn tokens for:
+**Membership card and tokens.** The token count in the bar at the bottom (or `M`) opens your membership card: your member number, a stamp for each day you came in, your streak, your time in the lounge and your rental history (✓ for tapes watched to the end). You earn tokens for:
 
 - coming in each day: 10, plus 5 more for each day in a row, up to +25 (so 35 a day from day 6). Miss a day and the streak starts again. One-off bonuses at 7, 30, 100 and 365 days in a row;
 - watching in the lounge: 1 every 5 minutes a tape plays, up to 12 a day;
@@ -106,7 +108,7 @@ The card is kept in that browser (`localStorage`), so clearing browsing data res
 
 ### PS1 Mode
 
-**PS1 mode** (top right, or `P`) draws the store like a 1995 PlayStation game: a 240-line picture with chunky pixels, wobbly polygons, warping and point-sampled textures, the console's 15-bit dithered colour, and distance fog. The video thumbnails are left alone: box covers, posters, the standee, the counter TV and the tape in your hands are drawn again at full resolution on top, so you can still tell every tape apart. The choice is remembered on that browser. `?ps1` and `?ps1=0` in the address turn it on or off for one visit.
+**PS1 mode** (in the bar at the bottom, or `P`) draws the store like a 1995 PlayStation game: a 240-line picture with chunky pixels, wobbly polygons, warping and point-sampled textures, the console's 15-bit dithered colour, and distance fog. The video thumbnails are left alone: box covers, posters, the standee, the counter TV and the tape in your hands are drawn again at full resolution on top, so you can still tell every tape apart. The choice is remembered on that browser. `?ps1` and `?ps1=0` in the address turn it on or off for one visit.
 
 ### The prize corner
 
@@ -139,6 +141,8 @@ The building sizes itself to the catalog. `src/layout.js` picks the number and l
 
 Everything is generated in code. There are no 3D models or image files: box art, carpet, signage and neon are all painted on `<canvas>`. All covers are packed into a few texture atlases and drawn with GPU instancing, so even a few thousand tapes take only a handful of draw calls.
 
+**Loading.** The sales floor's covers are painted before you can enter; the other rooms' (Streams) are painted a few at a time once the store's on screen. Shaders compile without freezing the page (`compileAsync`), and WebGL starts while the fonts and catalogs download. The sales floor's thumbnails load first, twelve at a time; the other rooms' follow three at a time, and eight at a time once you head that way. The debug overlay's timeline shows each step.
+
 ```
 src/
   main.js        app state machine, render loop, picking
@@ -164,6 +168,7 @@ src/
   luckyhit-physics.js  board of the day + 2D ball physics + the daily check (pure, unit tested)
   theater.js     the lounge working: the VCR, the YouTube player lined up behind the screen, the couches
   ui.js          splash, HUD, details panel, the couch's Stand up, directory
+  debug.js       the debug overlay (` or ?debug): frame times, draw calls, memory, the load timeline
 scripts/
   sync-youtube.mjs   builds public/catalog.json from the channel (network + files)
   lib/               parsing and shelving rules (pure, unit tested)

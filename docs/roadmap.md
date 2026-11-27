@@ -58,6 +58,14 @@ The user's list, after the site had picked up "an over-abundance of information"
 - **OPEN 24 HOURS** is neon now (tubes with a hot core and glow; the 24 HOURS tube sputters), not LED dots.
 - **Outside** (`src/outside.js`): a proper lot (stalls, wheel stops, island, lot lights, parked cars), a four-lane street with traffic both ways, and a strip mall and a gas station across it.
 
+## HUD at the bottom, and a faster load (built 2026-11-26, branch `feature/hud-bottom-and-perf`)
+
+- **Only the store's name stays up top.** The HUD's buttons (Find a tape, tokens, Sound, PS1, and Crouch on touch) joined the hint bar at the bottom, and show and hide with it.
+- **Fixes:** endcap corners (the grey chrome posts were flush with the endcap's front: now 2 mm proud), the end boards behind them, and a hovered tape cutting into the shelf's yellow lip (it rises 4.5 cm now, not 1).
+- **The door chime** rings whenever you come up to the front door, not just on Enter.
+- **The debug overlay** (` or `?debug`): FPS, CPU/GPU time a frame, draw calls, memory, downloads, and the load's timeline.
+- **Load:** usable in about 2.2 s instead of 3.2 s on the dev machine (production build, the live catalog). Covers' text fitting is three times faster with identical results; Streams' covers paint after the first frame; shaders compile without freezing the page; WebGL starts while files download; Streams' thumbnails trickle in (3 at a time, 8 when you head that way). Not done yet, for the user to decide: smaller thumbnails (YouTube's `mqdefault`, about a third fewer bytes, a little softer close up), or loading Streams' thumbnails only when you go there (27 of the 37 MB).
+
 ## Sound (built 2026-11-23, branch `feature/ambient-sound`)
 
 Everything is made in code with Web Audio (`src/audio.js`), as the user asked ("no audio files for now"): room tone (hum, air conditioning, street and passing cars near the windows), procedural in-store music (a mellow D-major chord loop with bass, drums and a pentatonic melody, through a ceiling-speaker filter and a small room reverb; quieter in the side rooms and ducked under a lounge tape), footsteps (carpet or tile), and one-offs: door chime, tape clicks, VCR load, drop box, receipt printer, tokens, prizes. Sound toggle on the HUD (N), remembered.

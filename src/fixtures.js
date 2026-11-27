@@ -170,11 +170,15 @@ export function buildGondolaShell(B, mat, g) {
   const coreLen = len - 2 * DIM.ENDCAP;
   const spineH = DIM.UNIT_H - plinthH;
   B.box(mat.peg, g.x, plinthH + spineH / 2, cz, 0.04, spineH, coreLen, 1 / 0.3);
-  // endcap backs
-  for (const z of [g.zFront - DIM.ENDCAP, g.zBack + DIM.ENDCAP]) B.box(mat.peg, g.x, plinthH + spineH / 2, z, DIM.G_DEPTH, spineH, 0.03, 1 / 0.3);
-  // chrome corner posts
+  // endcap backs: 2mm inside the side runs and under their top caps, so the board's
+  // edges don't share a plane with the end uprights (coplanar faces flicker)
+  const backH = spineH - 0.004;
+  for (const z of [g.zFront - DIM.ENDCAP, g.zBack + DIM.ENDCAP]) B.box(mat.peg, g.x, plinthH + backH / 2, z, DIM.G_DEPTH - 0.004, backH, 0.03, 1 / 0.3);
+  // chrome corner posts: 2mm proud of the endcap's front and a little taller than its
+  // top, for the same reason (the grey flickered over the endcap's edges)
+  const postH = DIM.UNIT_H + 0.003;
   for (const sx of [-1, 1]) for (const z of [g.zFront, g.zBack]) {
-    B.box(mat.chrome, g.x + sx * (DIM.G_DEPTH / 2 - 0.012), DIM.UNIT_H / 2, z - Math.sign(z - cz) * 0.012, 0.024, DIM.UNIT_H, 0.024);
+    B.box(mat.chrome, g.x + sx * (DIM.G_DEPTH / 2 - 0.012), postH / 2, z - Math.sign(z - cz) * 0.01, 0.024, postH, 0.024);
   }
 }
 

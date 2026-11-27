@@ -20,13 +20,22 @@ import { UI } from './ui.js';
 import { Membership, REWARDS } from './membership.js';
 import { phaseFor, seasonFor, PHASES, SEASON_IDS } from './calendar.js';
 import { StoreAudio } from './audio.js';
+import { DebugOverlay } from './debug.js';
 
 const ui = new UI();
 const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
 document.body.classList.toggle('touch', isTouch);
 
+// The load's timeline, for the debug overlay (ms since the page was opened). The browser
+// keeps 250 download timings unless asked for more; the store makes about 1,100.
+performance.setResourceTimingBufferSize?.(4000);
+const boot = [];
+const mark = (name) => boot.push({ name, t: performance.now() });
+
 async function main() {
-  await loadFonts();
+  mark('page and code loaded');
+  // The fonts and the catalogs download while the graphics start up (below).
+  const fonts = loadFonts().then(() => mark('fonts'));
 
   // dev only: ?catalog=other.json (or ?streams=other.json for an area) previews an
   // alternate catalog from /public
@@ -41,23 +50,13 @@ async function main() {
     console.warn(`[catalog] ${a.name}: ${err.message}`);
     return null;
   }));
-  let catalog;
-  try {
-    catalog = await loadCatalog(fileFor('catalog', 'catalog.json'));
-  } catch (err) {
-    ui.fatal('The store is closed', `Couldn't load the tape catalog: ${err.message}`);
-    return;
-  }
-  if (!catalog.videos.length) {
-    ui.fatal('The shelves are empty', 'catalog.json has no videos yet. Run `npm run sync` to stock the store.');
-    return;
-  }
-  (await Promise.all(areaFiles)).forEach((raw, i) => raw && addArea(catalog, AREAS[i], raw));
-  const areaVideos = Object.values(catalog.areas).flatMap((a) => a.videos);
-  ui.brand(catalog.store);
-  ui.splashStatus('BUILDING THE STORE');
+  const mainFile = loadCatalog(fileFor('catalog', 'catalog.json')).then(
+    (catalog) => ({ catalog }),
+    (error) => ({ error }),
+  );
 
-  // ------------------------------------------------------------ renderer + scene
+  // ------------------------------------------------------------ renderer
+  // (starting WebGL takes a few hundred ms on some machines, hence while the files come in)
   const canvas = document.getElementById('scene');
   let renderer;
   try {
@@ -75,7 +74,25 @@ async function main() {
   renderer.autoClear = false;
   renderer.setClearColor(0x05040c, 1);
   setMaxAnisotropy(Math.min(8, renderer.capabilities.getMaxAnisotropy()));
+  mark('graphics started (WebGL)');
 
+  await fonts;
+  const { catalog, error } = await mainFile;
+  if (error) {
+    ui.fatal('The store is closed', `Couldn't load the tape catalog: ${error.message}`);
+    return;
+  }
+  if (!catalog.videos.length) {
+    ui.fatal('The shelves are empty', 'catalog.json has no videos yet. Run `npm run sync` to stock the store.');
+    return;
+  }
+  (await Promise.all(areaFiles)).forEach((raw, i) => raw && addArea(catalog, AREAS[i], raw));
+  mark('catalogs');
+  const areaVideos = Object.values(catalog.areas).flatMap((a) => a.videos);
+  ui.brand(catalog.store);
+  ui.splashStatus('BUILDING THE STORE');
+
+  // ------------------------------------------------------------ scene
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x05040c);
   // Keep a usable horizontal field of view on portrait phones.
@@ -83,11 +100,15 @@ async function main() {
   const camera = new THREE.PerspectiveCamera(fovFor(window.innerWidth / window.innerHeight), window.innerWidth / window.innerHeight, 0.08, 140); // near 0.08: more depth precision for far shelves
 
   const plan = planStore(catalog);
+  mark('store planned');
   const atlas = new CoverAtlas();
   const paintCover = (v) => atlas.draw(v.id, coverData(v, catalog.aisleById.get(v.aisle), catalog.store));
   catalog.videos.forEach(paintCover);
-  areaVideos.forEach(paintCover);
+  // The other rooms' covers are out of sight from the door: they get their places in the
+  // atlas now, and are painted a few at a time once the store's on screen (paintAreas).
+  areaVideos.forEach((v) => atlas.cell(v.id));
   atlas.flush();
+  mark(`box covers painted (${catalog.videos.length}; the other rooms' ${areaVideos.length} later)`);
 
   const tapes = new TapeShelves(plan.slots, atlas);
   scene.add(tapes.group);
@@ -101,6 +122,7 @@ async function main() {
   const seasonParam = params.get('season');
   const season = seasonParam === 'none' ? null : SEASON_IDS.includes(seasonParam) ? seasonParam : seasonFor(new Date());
   const store = buildStore(scene, plan, catalog, { season, phase: timeParam || phaseFor(new Date()) });
+  mark('store built');
   const controls = new PlayerControls(camera, canvas, { colliders: store.colliders, bounds: plan.bounds, spawn: plan.spawn });
   const culling = new RoomCulling(plan, store.annex.groups, [...tapes.covers, ...boxSets.meshes]);
   const inspector = new Inspector(catalog);
@@ -113,7 +135,10 @@ async function main() {
     onPrize: (prize) => window.dispatchEvent(new CustomEvent('bb:prize', { detail: prize })),
     onChange: () => ui.refreshPlay(),
   });
-  renderer.compile(scene, camera);
+  // Compile the shaders without freezing the page (the graphics driver can take a second
+  // or more over them); the splash carries on meanwhile.
+  await renderer.compileAsync(scene, camera);
+  mark('shaders compiled');
 
   // PS1 Mode: the store drawn like a 1995 console game (thumbnails stay sharp).
   // Remembered between visits; ?ps1 / ?ps1=0 overrides.
@@ -571,6 +596,10 @@ async function main() {
       else if (mode === 'sit') standUp(gesture);
       return;
     }
+    if (e.code === 'Backquote' && !e.repeat) {
+      debug.toggle();
+      return;
+    }
     if (e.code === 'KeyP' && mode !== 'splash' && !e.repeat) {
       setPS1(!ps1.enabled);
       return;
@@ -740,17 +769,69 @@ async function main() {
   if (withThumbs.length) ui.splashProgress(0, withThumbs.length);
   else ui.splashStatus('ALL TAPES SHELVED', `${catalog.videos.length} IN STOCK`);
   ui.splashReady();
+  mark('ready to enter');
   const thumbFor = async (v) => {
     if (!(await loadThumb(v))) return;
     paintCover(v);
     store.refreshArt(v);
     boxSets.refresh(v);
   };
+  // The other rooms' thumbnails (Streams: three in every four) follow, three at a time,
+  // and eight at a time once you head that way (past the sales floor). All at once, they
+  // made the first few seconds in the store stutter: each is decoded and looked over on
+  // the main thread.
+  const areaThumbs = areaVideos.filter((v) => v.thumb);
+  let areaLoaded = 0;
+  let areaHurry = false; // set in tick(), when you leave the sales floor
+  const AREA_CALM = 3;
+  const AREA_HURRY = 8;
+  function loadAreaThumbs() {
+    let next = 0;
+    const worker = async (k) => {
+      while (next < areaThumbs.length) {
+        if (k >= AREA_CALM && !areaHurry) {
+          await new Promise((r) => setTimeout(r, 500));
+          continue;
+        }
+        await thumbFor(areaThumbs[next++]);
+        areaLoaded++;
+      }
+    };
+    return Promise.all(Array.from({ length: AREA_HURRY }, (_, k) => worker(k)));
+  }
   mapLimit(withThumbs, 12, async (v) => {
     await thumbFor(v);
     loaded++;
     ui.splashProgress(loaded, withThumbs.length);
-  }).then(() => mapLimit(areaVideos.filter((v) => v.thumb), 8, thumbFor));
+  })
+    .then(() => {
+      mark(`sales floor thumbnails (${withThumbs.length})`);
+      return loadAreaThumbs();
+    })
+    .then(() => mark(`other rooms' thumbnails (${areaThumbs.length})`));
+
+  // The other rooms' covers (see above), painted about 5 ms' worth at a time between
+  // frames, starting once the store's on screen. (A cover whose thumbnail arrives first
+  // is painted then, by thumbFor.)
+  const unpainted = [...areaVideos];
+  function paintAreas() {
+    const end = performance.now() + 5;
+    while (unpainted.length && performance.now() < end) paintCover(unpainted.shift());
+    if (unpainted.length) setTimeout(paintAreas, 20);
+    else mark(`other rooms' covers painted (${areaVideos.length})`);
+  }
+
+  // ------------------------------------------------------------ the debug overlay (` or ?debug)
+  const debug = new DebugOverlay({
+    renderer,
+    scenes: [scene, inspector.scene],
+    boot,
+    info: () => ({
+      Where: `${roomAt(plan, camera.position)} (${camera.position.x.toFixed(1)}, ${camera.position.z.toFixed(1)})   ${mode}${ps1.enabled ? '   PS1 Mode' : ''}`,
+      Tapes: `${plan.slots.length} on the shelves   thumbnails ${loaded + areaLoaded} of ${withThumbs.length + areaThumbs.length}`,
+    }),
+  });
+  if (params.has('debug')) debug.toggle(true);
 
   // ------------------------------------------------------------ still or on the move
   // The hint bar (and a touchscreen's labelled halves) come up once you've been still for
@@ -761,21 +842,34 @@ async function main() {
   let lastYaw = controls.yaw;
   let lastPitch = controls.pitch;
   let touchLearned = false;
-  let wasCrouching = false;
   function trackActivity(dt) {
     const turned = Math.abs(controls.yaw - lastYaw) + Math.abs(controls.pitch - lastPitch);
     lastYaw = controls.yaw;
     lastPitch = controls.pitch;
     const looking = dt > 0 && turned / dt > LOOK_SPEED;
     const walking = Math.hypot(controls.vel.x, controls.vel.z) > 0.15;
-    if (walking || looking || controls.touching || inspector.dragging || controls.crouching !== wasCrouching) lastActive = time;
-    wasCrouching = controls.crouching;
+    if (walking || looking || controls.touching || inspector.dragging) lastActive = time;
     ui.setStill(mode !== 'splash' && time - lastActive >= HINT_DELAY);
     // a touchscreen's halves are labelled until you've walked and looked with them
     if (isTouch && !touchLearned && controls.usedStick && controls.usedLook) {
       touchLearned = true;
       ui.setTouchLearned();
     }
+  }
+
+  // ------------------------------------------------------------ the door chime
+  // It rings when you come up to the front door, as it did when you walked in, and
+  // again each time you've stepped away from it and come back. You start by the door
+  // (Enter rang it), so it waits until you've left once.
+  let byDoor = true;
+  function doorChime() {
+    const { door, D } = plan;
+    const out = D / 2 - camera.position.z; // how far in from the front wall
+    const side = Math.abs(camera.position.x - door.x) - door.width / 2;
+    if (!byDoor && out < 1.0 && side < 0.5) {
+      byDoor = true;
+      sound('chime');
+    } else if (byDoor && (out > 1.6 || side > 1.1)) byDoor = false; // (a margin, so it can't ring twice at the line)
   }
 
   // ------------------------------------------------------------ loop
@@ -805,9 +899,11 @@ async function main() {
     }
     updateRemote();
     trackActivity(dt);
+    if (mode === 'walk') doorChime();
     // the store's sound: which room, the lounge's tape, the shop window, footsteps
     const here = camera.position;
     const room = roomAt(plan, here);
+    if (room !== 'main') areaHurry = true; // (on your way to Streams: its thumbnails, faster)
     audio.update(dt, {
       room,
       mode,
@@ -836,10 +932,12 @@ async function main() {
 
   function draw() {
     culling.update(camera);
+    debug.beginDraw();
     renderer.clear();
     if (ps1.enabled) ps1.render(scene, camera);
     else renderer.render(scene, camera);
     inspector.render(renderer, ps1.enabled ? ps1 : null);
+    debug.endDraw();
     theater.render(camera, culling.visible);
   }
 
@@ -847,13 +945,23 @@ async function main() {
   // tests use it so software-rendered CI machines aren't drawing frames nobody looks at.
   const manualClock = import.meta.env.DEV && new URLSearchParams(location.search).has('manual');
   if (!manualClock) {
+    let firstFrame = true;
     renderer.setAnimationLoop((timestamp) => {
+      const t0 = performance.now();
       timer.update(timestamp);
       tick(Math.min(timer.getDelta(), 0.05));
       draw();
+      const t1 = performance.now();
+      debug.frame(t1, t1 - t0);
+      if (firstFrame) {
+        firstFrame = false;
+        mark(`first frame drawn (it took ${Math.round(t1 - t0)} ms: textures go to the graphics card)`);
+        setTimeout(paintAreas, 0);
+      }
     });
   } else {
     draw();
+    setTimeout(paintAreas, 0);
   }
 
   if (import.meta.env.DEV) {

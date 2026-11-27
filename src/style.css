@@ -219,7 +219,6 @@ kbd {
   align-items: center;
   gap: 12px;
 }
-.hud-chips { display: flex; gap: 8px; }
 .hud-brand { display: flex; align-items: baseline; gap: 8px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
 .hud-brand .brand-name { font: 400 1.25rem/1 var(--neon); color: #e9fdff; text-shadow: 0 0 10px var(--cyan); }
 .hud-brand .brand-sub { font: 400 0.9rem/1 'Righteous', var(--display); letter-spacing: 0.4em; color: #ffd0e6; }
@@ -254,21 +253,38 @@ body.mouse-free #crosshair { display: none; }
 }
 @keyframes hintPulse { 50% { opacity: 0.55; } }
 
-/* The hint bar (bottom centre): what you're aiming at, or how to get about. main.js sets
-   body.still once you've been still for a couple of seconds; it fades out as you move. */
-#hints {
+/* The bottom of the screen: the VCR's remote when it's out, then the hint bar (what
+   you're aiming at or how to get about, and the store's buttons). main.js sets
+   body.still once you've been still for a couple of seconds; the hint bar fades out
+   (and can't be clicked) as soon as you move. */
+#bottom {
   position: fixed;
   left: 50%;
   bottom: max(14px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 16;
-  max-width: calc(100vw - 32px);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
 }
-body.still #hints { opacity: 1; transition-duration: 0.45s; }
+#hints {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0s linear 0.15s;
+}
+body.still #hints { opacity: 1; visibility: visible; transition: opacity 0.45s ease; }
 #hints > * { display: none; }
+body[data-mode='walk'] #hints .hint-chips,
+body[data-mode='paused'] #hints .hint-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 #hints[data-show='target'] .hint-target,
 #hints[data-show='walk'] .hint-keys,
 #hints[data-show='inspect'] .hint-inspect {
@@ -298,7 +314,7 @@ body.still[data-mode='walk']:not(.touch-learned) #touch-guide { opacity: 1; tran
 .tg-zone {
   position: absolute;
   top: 18%;
-  bottom: calc(max(64px, env(safe-area-inset-bottom) + 50px) + 56px); /* clear of Crouch */
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + 112px); /* clear of the buttons */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -440,14 +456,10 @@ body.drag-look #crosshair { display: none; }
 .theater-screen { background: #000; }
 .theater-screen iframe { display: block; width: 100%; height: 100%; border: 0; }
 
-/* the VCR's remote (rewind, pause, subtitles) */
+/* the VCR's remote (rewind, pause, subtitles), above the hint bar */
 #remote {
-  position: fixed;
-  left: 50%;
-  bottom: max(64px, calc(env(safe-area-inset-bottom) + 50px)); /* above the hints */
-  transform: translateX(-50%);
-  z-index: 15;
-  max-width: calc(100vw - 32px);
+  max-width: 100%;
+  pointer-events: auto;
   animation: playIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .remote {
@@ -463,14 +475,6 @@ body.drag-look #crosshair { display: none; }
 .remote .btn { font-size: 1.05rem; padding: 0.55em 0.95em 0.48em; }
 .remote .btn[aria-pressed='true'] { background: var(--yellow); color: var(--navy-deep); border-color: transparent; }
 .remote .btn[aria-pressed='true'] kbd { color: var(--navy-deep); border-color: rgba(10, 15, 38, 0.4); }
-
-#btn-crouch {
-  position: absolute;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(64px, calc(env(safe-area-inset-bottom) + 50px));
-  pointer-events: auto;
-  padding: 0.7em 1.1em;
-}
 
 #seat {
   position: fixed;
@@ -584,19 +588,17 @@ body.drag-look #crosshair { display: none; }
   .ip-title { font-size: 1.7rem; margin: 6px 0 4px; }
   .btn { font-size: 1.1rem; }
   /* the held tape's panel is docked at the bottom here, so its hint goes up top */
-  #hints[data-show='inspect'] { bottom: auto; top: max(14px, env(safe-area-inset-top)); }
+  body[data-mode='inspect'] #bottom { bottom: auto; top: max(14px, env(safe-area-inset-top)); }
   .hud-brand .brand-sub { display: none; }
   .hud-brand .brand-name { font-size: 1rem; }
   .chip-more { display: none; }
-}
-/* phones: the chips need the whole width (the name's on the splash, and on the building) */
-@media (max-width: 520px) {
-  .hud-brand { display: none; }
-  .hud-top { justify-content: flex-end; left: 10px; right: 10px; }
-  .hud-chips { gap: 6px; }
-  .hud-chips .chip { padding: 0.55em 0.7em 0.45em; font-size: 0.98rem; }
   .splash-card { padding: 26px 18px 20px; }
   .controls-legend { grid-template-columns: 1fr; }
+}
+/* phones: slightly smaller buttons, so they fit in two rows */
+@media (max-width: 520px) {
+  .hint-chips { gap: 6px !important; }
+  .hint-chips .chip { padding: 0.55em 0.75em 0.45em; font-size: 0.98rem; }
 }
 
 /* ------------------------------------------------------------ tokens + membership card */
@@ -738,3 +740,24 @@ body.drag-look #crosshair { display: none; }
 .slip-body .title { margin: 6px 0; font-size: 1.35rem; text-transform: uppercase; }
 .slip-body .big { font-size: 1.5rem; }
 .slip-body .barcode { height: 40px; margin: 12px 10px 4px; background: repeating-linear-gradient(90deg, #111 0 2px, transparent 2px 4px, #111 4px 5px, transparent 5px 8px, #111 8px 11px, transparent 11px 12px); }
+
+/* ------------------------------------------------------------ debug overlay (` or ?debug) */
+
+#debug {
+  position: fixed;
+  top: max(48px, calc(env(safe-area-inset-top) + 40px));
+  left: 12px;
+  z-index: 40;
+  margin: 0;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 120px);
+  overflow: hidden;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(4, 4, 12, 0.82);
+  border: 1px solid var(--line);
+  font: 12px/1.35 ui-monospace, Consolas, monospace;
+  color: #b9ffcc;
+  white-space: pre;
+  pointer-events: none;
+}

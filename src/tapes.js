@@ -16,6 +16,10 @@ const _ray = new THREE.Ray();
 const _hit = new THREE.Vector3();
 const WHITE = new THREE.Color(1, 1, 1);
 const GLOW = new THREE.Color(1.6, 1.55, 1.4);
+// The aimed-at tape slides toward you, and up far enough to clear the shelf's price
+// channel (the yellow lip stands 35mm over the shelf; a tape sits 12mm up).
+const HOVER_OUT = 0.06;
+const HOVER_UP = 0.045;
 
 function atlasMaterial(map) {
   const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.36, metalness: 0.0 });
@@ -111,7 +115,7 @@ export class TapeShelves {
     this.hovered = i;
     if (i >= 0) {
       const n = this.slots[i].face.n;
-      this.hoverMatrix.copy(this.base[i]).premultiply(_m.makeTranslation(_v.set(n.x * 0.06, 0.01, n.z * 0.06)));
+      this.hoverMatrix.copy(this.base[i]).premultiply(_m.makeTranslation(_v.set(n.x * HOVER_OUT, HOVER_UP, n.z * HOVER_OUT)));
       this.hoverInverse.copy(this.hoverMatrix).invert();
       this._set(i, this.hoverMatrix);
       this._tint(i, GLOW);
@@ -291,7 +295,7 @@ export class BoxSetShelves {
     this.hovered = i;
     if (i < 0) return;
     const n = this.boxes[i].face.n;
-    this.hoverMatrix.copy(this.base[i]).premultiply(_m.makeTranslation(_v.set(n.x * 0.06, 0.01, n.z * 0.06)));
+    this.hoverMatrix.copy(this.base[i]).premultiply(_m.makeTranslation(_v.set(n.x * HOVER_OUT, HOVER_UP, n.z * HOVER_OUT)));
     this.hoverInverse.copy(this.hoverMatrix).invert();
     this._set(i, this.hoverMatrix);
   }

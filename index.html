@@ -13,14 +13,9 @@
 
     <!-- In-store HUD -->
     <div id="hud" hidden>
+      <!-- Up top, just the store's name: everything else is in the hint bar at the bottom -->
       <div class="hud-top">
         <div class="hud-brand"><span class="brand-name"></span><span class="brand-sub"></span></div>
-        <div class="hud-chips">
-          <button id="btn-sound" class="chip" type="button" aria-pressed="true" title="Store music and sounds">Sound <kbd>N</kbd></button>
-          <button id="btn-ps1" class="chip" type="button" aria-pressed="false" title="Draw the store like a 1995 console game">PS1<span class="chip-more"> mode</span> <kbd>P</kbd></button>
-          <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
-          <button id="btn-card" class="chip chip-tokens" type="button" title="Your membership card"><span class="token-coin" aria-hidden="true"></span><span class="token-count">0</span><span class="chip-more"> tokens</span> <kbd>M</kbd></button>
-        </div>
       </div>
       <div id="crosshair"></div>
       <div id="resume-hint" hidden><kbd>Click</kbd> to look around</div>
@@ -29,28 +24,46 @@
         <div class="tg-zone tg-move"><div class="tg-stick"><i></i></div><b>Walk</b><span>drag here</span></div>
         <div class="tg-zone tg-look"><div class="tg-drag"></div><b>Look around</b><span>drag here · tap a tape to pick it up</span></div>
       </div>
-      <button id="btn-crouch" class="chip touch-only" type="button" aria-pressed="false">Crouch</button>
       <div id="joystick"><div class="knob"></div></div>
     </div>
 
-    <!-- The hint bar: what you're aiming at, or how to get about. It shows once you've
-         been still for a moment and hides again as soon as you move. -->
-    <div id="hints" data-show="">
-      <div class="hint-target">
-        <span class="ht-aisle"></span>
-        <span class="ht-title"></span>
-        <span class="ht-act"></span>
+    <!-- The bottom of the screen: the VCR's remote when it's out, and the hint bar. The
+         hint bar (what you're aiming at, the keys, and the store's buttons) shows once
+         you've been still for a moment and hides again as soon as you move. -->
+    <div id="bottom">
+      <!-- The VCR's remote: on the couch, or at the VCR, while a tape plays -->
+      <section id="remote" hidden>
+        <div class="remote" role="group" aria-label="VCR">
+          <span class="remote-title"></span>
+          <div class="remote-buttons">
+            <button class="btn" data-remote="rewind" type="button">◀◀ 5s <kbd>R</kbd></button>
+            <button class="btn" data-remote="pause" type="button"><span class="remote-pause">Pause</span> <kbd>Space</kbd></button>
+            <button class="btn" data-remote="subtitles" type="button" aria-pressed="false">Subtitles <kbd>T</kbd></button>
+          </div>
+        </div>
+      </section>
+      <div id="hints" data-show="">
+        <div class="hint-target">
+          <span class="ht-aisle"></span>
+          <span class="ht-title"></span>
+          <span class="ht-act"></span>
+        </div>
+        <div class="hint-keys desktop-only">
+          <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span>
+          <span><kbd>Shift</kbd> hurry</span>
+          <span><kbd>C</kbd> crouch</span>
+          <span><kbd>Click</kbd> pick up</span>
+        </div>
+        <div class="hint-keys touch-only">Left side: walk · Right side: look · Tap a tape to pick it up</div>
+        <div class="hint-inspect">Drag the box to turn it over</div>
+        <div class="hint-chips">
+          <button id="btn-find" class="chip" type="button">Find a tape <kbd>F</kbd></button>
+          <button id="btn-card" class="chip chip-tokens" type="button" title="Your membership card"><span class="token-coin" aria-hidden="true"></span><span class="token-count">0</span><span class="chip-more"> tokens</span> <kbd>M</kbd></button>
+          <button id="btn-sound" class="chip" type="button" aria-pressed="true" title="Store music and sounds">Sound <kbd>N</kbd></button>
+          <button id="btn-ps1" class="chip" type="button" aria-pressed="false" title="Draw the store like a 1995 console game">PS1<span class="chip-more"> mode</span> <kbd>P</kbd></button>
+          <button id="btn-crouch" class="chip touch-only" type="button" aria-pressed="false">Crouch</button>
+        </div>
       </div>
-      <div class="hint-keys desktop-only">
-        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span>
-        <span><kbd>Shift</kbd> hurry</span>
-        <span><kbd>C</kbd> crouch</span>
-        <span><kbd>Click</kbd> pick up</span>
-        <span><kbd>F</kbd> find</span>
-        <span><kbd>M</kbd> card</span>
-      </div>
-      <div class="hint-keys touch-only">Left side: walk · Right side: look · Tap a tape to pick it up</div>
-      <div class="hint-inspect">Drag the box to turn it over</div>
     </div>
 
     <!-- Splash / front door -->
@@ -111,18 +124,6 @@
         </div>
         <div class="pp-body"></div>
         <button class="btn ghost pp-stand" data-act="stand" type="button">Stand up <kbd>Q</kbd></button>
-      </div>
-    </section>
-
-    <!-- The VCR's remote: on the couch, or at the VCR, while a tape plays -->
-    <section id="remote" hidden>
-      <div class="remote" role="group" aria-label="VCR">
-        <span class="remote-title"></span>
-        <div class="remote-buttons">
-          <button class="btn" data-remote="rewind" type="button">◀◀ 5s <kbd>R</kbd></button>
-          <button class="btn" data-remote="pause" type="button"><span class="remote-pause">Pause</span> <kbd>Space</kbd></button>
-          <button class="btn" data-remote="subtitles" type="button" aria-pressed="false">Subtitles <kbd>T</kbd></button>
-        </div>
       </div>
     </section>
 

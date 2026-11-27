@@ -11,6 +11,7 @@ import { shelfName } from './catalog.js';
 const thumbPromises = new Map();
 const thumbs = new Map(); // video.id -> { img, crop } | null
 
+
 export function loadThumb(video) {
   if (!video.thumb) return Promise.resolve(null);
   if (!thumbPromises.has(video.id)) {
@@ -143,10 +144,55 @@ function wrap(ctx, text, maxW) {
   return lines;
 }
 
+// Fitting text is most of the work of painting a cover (every title, at up to 40 sizes),
+// and measureText is slow. Text widths scale with the font size, so fit() measures each
+// word once, at REF px, and skips the sizes those sums show can't fit (with SLACK to
+// spare for kerning), measuring for real only the sizes that might. Same result; a
+// cover paints about three times faster.
+const REF = 100;
+const SLACK = 1.04;
+
+/** Could `words` (widths per px of font size) fit, wrapped at `maxW`, at `size`? */
+function mightFit(widths, space, size, maxW, maxH, maxLines, lineH) {
+  let lines = 0;
+  let lineW = -1;
+  for (const w of widths) {
+    const width = w * size;
+    if (width > maxW) return false;
+    if (lineW >= 0 && lineW + space * size + width <= maxW) lineW += space * size + width;
+    else {
+      lineW = width;
+      lines++;
+    }
+  }
+  return lines <= maxLines && lines * size * lineH <= maxH;
+}
+
+// A cover is painted again when its thumbnail arrives, with the same text in the same
+// boxes: fit() remembers what it worked out.
+const fitted = new Map();
+
 /** Choose the largest font size at which `text` fits in the box. */
 function fit(ctx, text, font, maxW, maxH, maxLines, maxSize, minSize, lineH = 0.92) {
+  const key = `${font(REF)}|${maxW}|${maxH}|${maxLines}|${maxSize}|${minSize}|${lineH}|${text}`;
+  const known = fitted.get(key);
+  if (known) {
+    ctx.font = font(known.size); // (the caller draws with the font fit() leaves set)
+    return { ...known, lines: [...known.lines] };
+  }
+  if (fitted.size > 20000) fitted.clear();
+  const result = fitText(ctx, text, font, maxW, maxH, maxLines, maxSize, minSize, lineH);
+  fitted.set(key, { ...result, lines: [...result.lines] });
+  return result;
+}
+
+function fitText(ctx, text, font, maxW, maxH, maxLines, maxSize, minSize, lineH) {
   const step = Math.max(1, maxSize / 40);
+  ctx.font = font(REF);
+  const widths = text.split(/\s+/).filter(Boolean).map((w) => ctx.measureText(w).width / REF);
+  const space = ctx.measureText(' ').width / REF;
   for (let size = maxSize; size >= minSize; size -= step) {
+    if (!mightFit(widths, space, size, maxW * SLACK, maxH, maxLines, lineH)) continue;
     ctx.font = font(size);
     const lines = wrap(ctx, text, maxW);
     if (lines.length <= maxLines && lines.length * size * lineH <= maxH && lines.every((l) => ctx.measureText(l).width <= maxW)) {
