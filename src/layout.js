@@ -680,12 +680,15 @@ export function visibleRooms(plan, at, sees) {
 }
 
 const MAX_STREAMS_GROWTH = 25; // bays' worth (30 m): past that, the oldest tapes don't fit
-const uploadOrder = (a, b) => String(a.publishedAt).localeCompare(String(b.publishedAt)) || a.id.localeCompare(b.id);
+// (a box set goes just before its first tape, which went up at the same moment)
+const uploadOrder = (a, b) => String(a.publishedAt).localeCompare(String(b.publishedAt)) || (b.boxSet ? 1 : 0) - (a.boxSet ? 1 : 0) || a.id.localeCompare(b.id);
 
 /**
  * An archive area's tapes grouped by aisle (in the catalog's order), oldest upload first.
- * A game's run of streams is one box set (boxsets.js), shelved where its first part would
- * be (a run that carries on into the next year stays in the year it started).
+ * A game's run of streams (boxsets.js) is on the shelf both ways: as a box set holding
+ * its tapes, standing just before its first part (a run that carries on into the next
+ * year starts in the year it started), and as single tapes, each where it would be
+ * anyway. Take the whole box, or just the one night you want.
  */
 function archiveGroups(area) {
   if (!area?.videos?.length) return [];
@@ -693,8 +696,8 @@ function archiveGroups(area) {
   const byAisle = new Map(area.aisles.map((a) => [a.id, []]));
   for (const v of area.videos) {
     const set = setOf.get(v.id);
-    if (set && set.videos[0] !== v) continue;
-    byAisle.get(v.aisle)?.push(set ? { boxSet: set, publishedAt: v.publishedAt, id: set.id } : v);
+    if (set?.videos[0] === v) byAisle.get(v.aisle)?.push({ boxSet: set, publishedAt: v.publishedAt, id: set.id });
+    byAisle.get(v.aisle)?.push(v);
   }
   // (a box can't start in a shelf's last slot: allow for one empty slot per shelf)
   const perBay = SLOTS_PER_BAY - DIM.SHELF_COUNT;

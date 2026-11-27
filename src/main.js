@@ -282,6 +282,7 @@ async function main() {
     setMode('inspect');
     tapes.hide(slot);
     inspector.open(video, slot, tapes.worldMatrix(slot), camera);
+    thumbFor(video); // (if its thumbnail hasn't come yet, ask for it now: it'll repaint)
     sound('pickup');
     controls.unlock();
     showHeld(slot);
@@ -440,7 +441,8 @@ async function main() {
       if (mode === 'directory') closeDirectory(true); // (you're carrying it, or it's in the VCR)
       return;
     }
-    const rank = ({ s }) => (s.section.kind === 'genre' ? 0 : s.section.kind === 'new' ? 1 : 2) * 10 + Math.abs(s.row - 3);
+    // (its own copy on a genre shelf at eye level if there is one; inside a box set last)
+    const rank = ({ s }) => (s.box ? 100 : 0) + (s.section.kind === 'genre' ? 0 : s.section.kind === 'new' ? 1 : 2) * 10 + Math.abs(s.row - 3);
     slots.sort((a, b) => rank(a) - rank(b));
     const { s, i } = slots[0];
     const m = tapes.worldMatrix(i);
@@ -770,11 +772,14 @@ async function main() {
   else ui.splashStatus('ALL TAPES SHELVED', `${catalog.videos.length} IN STOCK`);
   ui.splashReady();
   mark('ready to enter');
+  const painted = new Set(); // (tapes whose thumbnail is on their cover now)
   const thumbFor = async (v) => {
-    if (!(await loadThumb(v))) return;
+    if (painted.has(v.id) || !(await loadThumb(v)) || painted.has(v.id)) return;
+    painted.add(v.id);
     paintCover(v);
     store.refreshArt(v);
     boxSets.refresh(v);
+    inspector.refreshArt(v); // (the tape in your hands, if it's this one)
   };
   // The other rooms' thumbnails (Streams: three in every four) follow, three at a time,
   // and eight at a time once you head that way (past the sales floor). All at once, they
@@ -782,7 +787,12 @@ async function main() {
   // the main thread.
   const areaThumbs = areaVideos.filter((v) => v.thumb);
   let areaLoaded = 0;
-  let areaHurry = false; // set in tick(), when you leave the sales floor
+  // A link straight to a tape (?tape=<id>): its thumbnail and its shelf section's come
+  // first, so they're there when you arrive; for a tape in Streams, the rest of the room's
+  // come at full speed as well.
+  const linked = pendingTape ? plan.slots.find((s) => s.video.id === pendingTape).video : null;
+  const linkedShelf = linked ? [linked, ...(linked.area ? areaVideos : catalog.videos).filter((v) => v !== linked && v.aisle === linked.aisle)].filter((v) => v.thumb) : [];
+  let areaHurry = Boolean(linked?.area); // (and set in tick(), when you leave the sales floor)
   const AREA_CALM = 3;
   const AREA_HURRY = 8;
   function loadAreaThumbs() {
@@ -799,11 +809,14 @@ async function main() {
     };
     return Promise.all(Array.from({ length: AREA_HURRY }, (_, k) => worker(k)));
   }
-  mapLimit(withThumbs, 12, async (v) => {
-    await thumbFor(v);
-    loaded++;
-    ui.splashProgress(loaded, withThumbs.length);
-  })
+  mapLimit(linkedShelf, 12, thumbFor)
+    .then(() =>
+      mapLimit(withThumbs, 12, async (v) => {
+        await thumbFor(v);
+        loaded++;
+        ui.splashProgress(loaded, withThumbs.length);
+      }),
+    )
     .then(() => {
       mark(`sales floor thumbnails (${withThumbs.length})`);
       return loadAreaThumbs();

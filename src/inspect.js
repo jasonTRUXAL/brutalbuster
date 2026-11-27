@@ -161,6 +161,24 @@ export class Inspector {
     this.subjects.add(this.mesh);
   }
 
+  /**
+   * A tape's thumbnail has arrived: if it's the one in your hands (or the one you're
+   * carrying), repaint its front and back, which show it.
+   */
+  refreshArt(video) {
+    for (const mesh of [this.video?.id === video.id && this.mesh, this.carry?.video.id === video.id && this.carry.mesh]) {
+      if (!mesh) continue;
+      const d = coverData(video, this.catalog.aisleById.get(video.aisle), this.catalog.store);
+      const W = 512;
+      const H = Math.round((W * 280) / 160);
+      [[4, drawCover], [5, drawBack]].forEach(([i, draw]) => {
+        const m = mesh.material[i];
+        m.map.dispose();
+        m.map = texFrom(draw, W, H, d);
+      });
+    }
+  }
+
   /** Put it back; resolves when the tape is back on the shelf. */
   close() {
     if (this.state === 'idle' || this.state === 'out') return;

@@ -69,7 +69,8 @@ for (const n of [1, 15, 742, 1500]) {
 
     await t.test('within a year, tapes run in upload order', () => {
       for (const sec of streams.sections.filter((s) => s.kind === 'genre')) {
-        const dates = slots.filter((s) => s.section === sec).map((s) => s.video.publishedAt);
+        // (the tapes inside a box set are where the box is, not in this order)
+        const dates = slots.filter((s) => s.section === sec && !s.box).map((s) => s.video.publishedAt);
         assert.deepEqual(dates, [...dates].sort(), `${sec.label} is out of order`);
       }
     });
@@ -121,7 +122,7 @@ test('an archive too big for the longest room keeps its newest tapes', () => {
   assert.ok(plan.streams.z1 - plan.streams.z0 < 45, 'the room stops growing at some point');
 });
 
-test('a game streamed over several nights is shelved as one box set holding its tapes', () => {
+test('a game streamed over several nights is shelved as a box set, and as single tapes', () => {
   const raw = rawArchive(120, 3);
   // three runs: a 4-night game, a 2-night one, and a show that ran for 3 weeks
   const runs = [['Shenmue (Part 1)', 'Shenmue (Part 2)', 'Shenmue (Part 3)', 'Shenmue (Finale)'], ['Myst [Part One]', 'Myst [Finale]'], ['games | Bingo98', 'more games | Bingo98', 'the last games | Bingo98']];
@@ -141,7 +142,16 @@ test('a game streamed over several nights is shelved as one box set holding its 
     assert.ok(box.parts.every((s, i) => s.box === box && s.part === i && s.col === box.col && s.row === box.row));
     assert.ok(box.col + 1 <= box.face.perRow, 'the box fits on its shelf');
   }
-  // a boxed tape isn't also shelved on its own
-  const loose = plan.slots.filter((s) => !s.box && s.section.kind === 'genre' && s.face.room === 'streams');
-  assert.ok(loose.every((s) => !plan.boxes.some((b) => b.boxSet.videos.includes(s.video))));
+  // every tape in a box is on the shelf on its own too, and the box stands just before
+  // its first one (in reading order round the room)
+  const reading = plan.slots.filter((s) => s.section.kind === 'genre' && s.face.room === 'streams');
+  const single = (v) => reading.findIndex((s) => !s.box && s.video === v);
+  for (const box of plan.boxes) {
+    const at = box.boxSet.videos.map(single);
+    assert.ok(at.every((i) => i >= 0), `${box.boxSet.title}: every tape is on the shelf by itself too`);
+    assert.deepEqual(at, [...at].sort((a, b) => a - b), `${box.boxSet.title}: its tapes run in order`);
+    const boxAt = reading.indexOf(box.parts[0]);
+    assert.ok(boxAt < at[0], `${box.boxSet.title}: the box comes first`);
+    assert.ok(reading.slice(boxAt + box.parts.length, at[0]).every((s) => s.box), 'with nothing else in between');
+  }
 });

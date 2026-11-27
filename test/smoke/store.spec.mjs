@@ -516,6 +516,21 @@ test('Streams: take a tape out of a box set and swap it for the next', async ({ 
   await expect(page.locator('.ip-set-label')).toContainText('Tape 2 of');
   await page.locator('[data-act="prevTape"]').click();
   await expect(page.locator('.ip-title')).toHaveText(first);
+
+  // each of the box's tapes is on the shelf by itself too, and Find a tape goes to that one
+  const single = await page.evaluate((i) => {
+    const bb = window.__bb;
+    bb.putBack(false);
+    bb.advance(1);
+    const box = bb.plan.boxes[i];
+    const loose = box.boxSet.videos.every((v) => bb.plan.slots.some((s) => !s.box && s.video === v));
+    bb.goToVideo(box.boxSet.videos[1].id);
+    bb.advance(0.8);
+    return { loose, held: bb.inspector.video.id, wanted: box.boxSet.videos[1].id, fromBox: Boolean(bb.plan.slots[bb.inspector.slot].box) };
+  }, box);
+  expect(single.loose, 'every tape in the box is shelved on its own too').toBe(true);
+  expect(single).toMatchObject({ held: single.wanted, fromBox: false });
+  await expect(page.locator('.ip-set')).toBeHidden(); // (a single tape: no box strip)
 });
 
 test('the membership card: tokens for the visit, opened with M, closed with Q', async ({ store: page }, testInfo) => {
