@@ -141,7 +141,7 @@ The building sizes itself to the catalog. `src/layout.js` picks the number and l
 
 Everything is generated in code. There are no 3D models or image files: box art, carpet, signage and neon are all painted on `<canvas>`. All covers are packed into a few texture atlases and drawn with GPU instancing, so even a few thousand tapes take only a handful of draw calls.
 
-**Loading.** The sales floor's covers are painted before you can enter; the other rooms' (Streams) are painted a few at a time once the store's on screen. Shaders compile without freezing the page (`compileAsync`), and WebGL starts while the fonts and catalogs download. The sales floor's thumbnails load first, twelve at a time; the other rooms' follow three at a time, and eight at a time once you head that way. The debug overlay's timeline shows each step.
+**Loading.** The sales floor's covers are painted before you can enter; the other rooms' (Streams) are painted a few at a time once the store's on screen. Shaders compile without freezing the page (`compileAsync`), and WebGL starts while the fonts and catalogs download. Thumbnails are YouTube's 320x180 ones on the shelves (half the download of the 480x360 ones, and the same at that size); the tape you pick up loads the sharper one. The sales floor's load first, twelve at a time; the other rooms' follow three at a time, and eight at a time once you head that way. The debug overlay's timeline shows each step.
 
 ```
 src/

@@ -48,7 +48,7 @@ npm run check:catalog -- some/file.json
       "year": 1964,                   // production year (not upload year), or null
       "duration": "1:16:20",          // "m:ss" or "h:mm:ss", or ""
       "publishedAt": "2026-03-02T18:00:00Z",   // ISO date or ""; newest go on the New Releases wall
-      "thumb": "https://…",           // optional; defaults to the YouTube hqdefault thumbnail
+      "thumb": "https://…",           // optional; defaults to YouTube's thumbnails (320x180 mqdefault on the shelves, 480x360 hqdefault for the tape in your hands)
       "hidden": false                 // optional; true = left off the shelves
     }
   ]

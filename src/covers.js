@@ -8,21 +8,31 @@ import { shelfName } from './catalog.js';
 
 // ---------------------------------------------------------------- thumbnails
 
+// Two sizes: `video.thumb` (YouTube's 320x180) for the shelves and everywhere else,
+// and `video.thumbSharp` (480x360) for the tape in your hands, loaded when you pick it up
+// (catalog.js). The small one is half the download and looks the same on the shelf.
 const thumbPromises = new Map();
 const thumbs = new Map(); // video.id -> { img, crop } | null
+const sharpPromises = new Map();
+const sharpThumbs = new Map();
 
+export const loadThumb = (video) => loadInto(video.thumb, video.id, thumbPromises, thumbs);
 
-export function loadThumb(video) {
-  if (!video.thumb) return Promise.resolve(null);
-  if (!thumbPromises.has(video.id)) {
-    thumbPromises.set(
-      video.id,
+/** The sharper thumbnail, for the tape in your hands (the usual one if there's no other). */
+export const loadSharpThumb = (video) =>
+  video.thumbSharp && video.thumbSharp !== video.thumb ? loadInto(video.thumbSharp, video.id, sharpPromises, sharpThumbs) : loadThumb(video);
+
+function loadInto(url, id, promises, loaded) {
+  if (!url) return Promise.resolve(null);
+  if (!promises.has(id)) {
+    promises.set(
+      id,
       new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.decoding = 'async';
         const done = (val) => {
-          thumbs.set(video.id, val);
+          loaded.set(id, val);
           resolve(val);
         };
         const timer = setTimeout(() => done(null), 15000);
@@ -40,11 +50,11 @@ export function loadThumb(video) {
           clearTimeout(timer);
           done(null);
         };
-        img.src = video.thumb;
+        img.src = url;
       }),
     );
   }
-  return thumbPromises.get(video.id);
+  return promises.get(id);
 }
 
 export const getThumb = (video) => thumbs.get(video.id) || null;
@@ -452,8 +462,11 @@ function drawPicture(ctx, d, x, y, w, h, focusY) {
 
 const STICKERS = ['RARE!', 'HI-FI', 'CULT!', 'GEM!'];
 
-/** Everything a cover needs, gathered from the video + aisle. */
-export function coverData(video, aisle, store) {
+/**
+ * Everything a cover needs, gathered from the video + aisle. `sharp`: with the sharper
+ * thumbnail, if it's loaded (the tape in your hands).
+ */
+export function coverData(video, aisle, store, { sharp = false } = {}) {
   const seed = hash(video.id);
   return {
     seed,
@@ -464,7 +477,7 @@ export function coverData(video, aisle, store) {
     duration: video.duration,
     aisleName: shelfName(aisle) || 'Rare Finds',
     color: aisle?.color || '#ffc61a',
-    thumb: getThumb(video),
+    thumb: (sharp && sharpThumbs.get(video.id)) || getThumb(video),
     store,
     catNo: `${(store?.name || 'BB').slice(0, 2).toUpperCase()}-${String(seed % 10000).padStart(4, '0')}`,
   };

@@ -73,5 +73,7 @@ test('normalizeCatalog drops hidden and duplicate videos and unused aisles', () 
 test('normalizeCatalog derives thumbnails from youtubeId', () => {
   const raw = rawCatalog(1, 1);
   raw.videos[0].youtubeId = 'dQw4w9WgXcQ';
-  assert.equal(normalizeCatalog(raw).videos[0].thumb, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
+  // the small thumbnail for the shelves, the sharper one for the tape in your hands
+  assert.equal(normalizeCatalog(raw).videos[0].thumb, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg');
+  assert.equal(normalizeCatalog(raw).videos[0].thumbSharp, 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
 });

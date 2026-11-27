@@ -65,7 +65,10 @@ export function normalizeCatalog(raw) {
       year: v.year ? Number(v.year) : null,
       duration: v.duration || '',
       publishedAt: v.publishedAt || '',
-      thumb: v.thumb || (v.youtubeId ? `https://i.ytimg.com/vi/${v.youtubeId}/hqdefault.jpg` : null),
+      // YouTube's 320x180 thumbnail on the shelves (half the download of the 480x360 one,
+      // and it looks the same at shelf size); the sharper one for the tape in your hands
+      thumb: v.thumb || (v.youtubeId ? `https://i.ytimg.com/vi/${v.youtubeId}/mqdefault.jpg` : null),
+      thumbSharp: v.thumb || (v.youtubeId ? `https://i.ytimg.com/vi/${v.youtubeId}/hqdefault.jpg` : null),
     });
   }
 

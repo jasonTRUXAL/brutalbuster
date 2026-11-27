@@ -136,7 +136,7 @@ export class Inspector {
     this.video = video;
     this.slot = slotIndex;
     const aisle = this.catalog.aisleById.get(video.aisle);
-    const d = coverData(video, aisle, this.catalog.store);
+    const d = coverData(video, aisle, this.catalog.store, { sharp: true });
     const W = 512;
     const H = Math.round((W * 280) / 160);
     const spineW = Math.round((H * DIM.CASE_D) / DIM.CASE_H);
@@ -162,13 +162,13 @@ export class Inspector {
   }
 
   /**
-   * A tape's thumbnail has arrived: if it's the one in your hands (or the one you're
-   * carrying), repaint its front and back, which show it.
+   * A tape's thumbnail (or its sharper one) has arrived: if it's the one in your hands
+   * (or the one you're carrying), repaint its front and back, which show it.
    */
   refreshArt(video) {
     for (const mesh of [this.video?.id === video.id && this.mesh, this.carry?.video.id === video.id && this.carry.mesh]) {
       if (!mesh) continue;
-      const d = coverData(video, this.catalog.aisleById.get(video.aisle), this.catalog.store);
+      const d = coverData(video, this.catalog.aisleById.get(video.aisle), this.catalog.store, { sharp: true });
       const W = 512;
       const H = Math.round((W * 280) / 160);
       [[4, drawCover], [5, drawBack]].forEach(([i, draw]) => {

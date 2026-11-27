@@ -12,7 +12,7 @@ import { PlayerControls } from './controls.js';
 import { Inspector } from './inspect.js';
 import { Arcade } from './arcade.js';
 import { PS1Mode } from './ps1.js';
-import { coverData, loadThumb } from './covers.js';
+import { coverData, loadThumb, loadSharpThumb } from './covers.js';
 import { setMaxAnisotropy } from './textures.js';
 import { DIM } from './config.js';
 import { mapLimit } from './util.js';
@@ -283,6 +283,7 @@ async function main() {
     tapes.hide(slot);
     inspector.open(video, slot, tapes.worldMatrix(slot), camera);
     thumbFor(video); // (if its thumbnail hasn't come yet, ask for it now: it'll repaint)
+    sharpen(video);
     sound('pickup');
     controls.unlock();
     showHeld(slot);
@@ -321,10 +322,14 @@ async function main() {
     tapes.show(heldSlot); // (back in the box)
     tapes.hide(next);
     heldSlot = next;
+    sharpen(plan.slots[next].video);
     sound('swap');
     showHeld(next, true);
   }
   inspector.onClosed = (slot) => tapes.show(slot);
+
+  /** The tape in your hands gets the sharper thumbnail (the shelves have the smaller one). */
+  const sharpen = (video) => loadSharpThumb(video).then((t) => t && inspector.refreshArt(video));
 
   /** Back to walking after the held-tape panel. A click lets us recapture the mouse. */
   function resumeWalking(viaGesture) {
